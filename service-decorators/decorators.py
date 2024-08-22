@@ -30,6 +30,7 @@ def get_memory():
     memory_information = process.memory_info()
     return memory_information.rss / (1024 * 1024) # This is MB.
 
+
 # Same thing as log_time, will need to add logging to this by default.
 def toggle_memory(enable=False):
     def log_memory(func):
