@@ -4,8 +4,8 @@ import os
 from functools import wraps
 
 
-# This is simple implement by  default, will need to add these to logs, once it's done.
 
+# Measure Time.
 def toggle_time(enable=False):
     def log_time(func):
         """This logs the time."""
@@ -31,7 +31,7 @@ def get_memory():
     return memory_information.rss / (1024 * 1024) # This is MB.
 
 
-# Same thing as log_time, will need to add logging to this by default.
+# Measure memory.
 def toggle_memory(enable=False):
     def log_memory(func):
         @wraps(func)
@@ -47,4 +47,4 @@ def toggle_memory(enable=False):
         return wrapper
     return log_memory
 
-#
+# Need to add a hook a logger either efk or grafana/prom to these once the logging service is done.
