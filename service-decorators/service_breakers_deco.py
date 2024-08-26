@@ -1,7 +1,7 @@
 import threading
 
 class ApiCircutBreakers:
-    def __init__(self, api_count, soft_limit, hard_limit, rate_limit ):
+    def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
         """
         :param seconds: Internal count to reset api_count
         :param api_count:  This is the current count of the API
@@ -16,12 +16,12 @@ class ApiCircutBreakers:
 
 
         # This part is related to circut breakers
+        self._current_status = "CLOSED"
         self._rate_limit = rate_limit
         self._api_count = api_count
         self._soft_limit = soft_limit
         self._hard_limit = hard_limit
         self.queue = []
-
 
 
     def get_rate_limit(self):
@@ -32,6 +32,9 @@ class ApiCircutBreakers:
 
     def get_soft_limit(self):
         return self._soft_limit
+
+    def get_hard_limit(self):
+        return self._hard_limit
 
     def _run(self):
         self.__seconds += 1
@@ -44,9 +47,36 @@ class ApiCircutBreakers:
     def reset_count(self):
         self._api_count = 0
 
+    def get_status(self):
+        current_count = self.get_api_count()
+        soft_limit = self.get_soft_limit()
+        hard_limit = self.get_hard_limit
+
+        if current_count <= soft_limit:
+            """Set this to CLOSED"""
+            self._current_status = "CLOSED"
+
+        if current_count >= soft_limit and current_count < hard_limit:
+            self._current_status = "HALF"
+            """Set this to Half-Open"""
+
+        if current_count > hard_limit:
+            self._current_status = "CLOSED"
+            """Set this to closed."""
+        return self._current_status
+
+    def handle_closed(self):
+        pass
+
+    def handle_half_open(self):
+        pass
 
 
+    def handle_open(self):
+        pass
 
+    def __call__(self, *args,**kwargs):
+        pass
 
 
 # TODO Finish deco for circut wrappers
