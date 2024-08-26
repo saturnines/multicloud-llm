@@ -4,7 +4,7 @@ import threading
 class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
         """
-        :param seconds: Internal count to reset api_count
+        :param __seconds: Internal count to reset api_count
         :param api_count:  This is the current count of the API
         :param soft_limit:  Threshold for the api to go into half-open
         :param hard_limit   : Threshold for the api to go to Open
