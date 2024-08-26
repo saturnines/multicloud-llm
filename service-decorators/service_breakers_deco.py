@@ -52,7 +52,7 @@ class ApiCircuitBreakers:
     def get_status(self):
         current_count = self.get_api_count()
         soft_limit = self.get_soft_limit()
-        hard_limit = self.get_hard_limit
+        hard_limit = self.get_hard_limit()
 
         if current_count <= soft_limit:
             """Set this to CLOSED"""
