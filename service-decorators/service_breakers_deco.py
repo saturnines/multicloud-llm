@@ -1,5 +1,7 @@
 import collections
 import threading
+import time
+
 
 class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
@@ -14,6 +16,8 @@ class ApiCircuitBreakers:
         # This part is the internal count
         self.__seconds = 0
         self._run()
+        self._lock = threading.Lock()
+        self._last_reset_time = time.time()
 
 
         # This part is related to circut breakers
@@ -38,6 +42,12 @@ class ApiCircuitBreakers:
     def get_hard_limit(self):
         return self._hard_limit
 
+    def _check_and_reset_count(self):
+        current_time = time.time()
+        if current_time - self._last_reset_time >= 60:
+            self._api_count = 0
+            self._last_reset_time = current_time
+
     def _run(self):
         self.__seconds += 1
 
@@ -50,22 +60,17 @@ class ApiCircuitBreakers:
         self._api_count = 0
 
     def get_status(self):
-        current_count = self.get_api_count()
-        soft_limit = self.get_soft_limit()
-        hard_limit = self.get_hard_limit()
+        """May need to change this in the future"""
+        with self._lock:
+            self._check_and_reset_count()
+            if self._api_count <= self._soft_limit:
+                self._current_status = "CLOSED"
+            elif self._soft_limit < self._api_count <= self._hard_limit:
+                self._current_status = "HALF"
+            else:
+                self._current_status = "OPEN"
+            return self._current_status
 
-        if current_count <= soft_limit:
-            """Set this to CLOSED"""
-            self._current_status = "CLOSED"
-
-        if current_count >= soft_limit and current_count < hard_limit:
-            self._current_status = "HALF"
-            """Set this to Half-Open"""
-
-        if current_count > hard_limit:
-            self._current_status = "OPEN"
-            """Set this to closed."""
-        return self._current_status
 
     def insert_queue(self, func, args, kwargs):
         """Add arg to front of queue"""
@@ -94,8 +99,9 @@ class ApiCircuitBreakers:
 
     def __call__(self, func):
         def wrapped_func(*args, **kwargs):
-            self._api_count += 1
-            status = self.get_status()
+            with self._lock:
+                self._api_count += 1
+                status = self.get_status()
 
             if status == "CLOSED":
                 return self.handle_closed(func, *args, **kwargs)
@@ -107,5 +113,5 @@ class ApiCircuitBreakers:
         return wrapped_func
 
 
-# THIS IS NOT MULTITHREADED SAFE.
+
 # NEed to add logging too.
