@@ -1,12 +1,13 @@
+import collections
 import threading
 
-class ApiCircutBreakers:
+class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
         """
         :param seconds: Internal count to reset api_count
         :param api_count:  This is the current count of the API
         :param soft_limit:  Threshold for the api to go into half-open
-        :param w    : Threshold for the api to go to Open
+        :param hard_limit   : Threshold for the api to go to Open
         :param rate_limit:  Hard Rate limit of the external
         :para queue: queue system to be used when half-open
         """
@@ -21,8 +22,9 @@ class ApiCircutBreakers:
         self._api_count = api_count
         self._soft_limit = soft_limit
         self._hard_limit = hard_limit
-        self.queue = []
 
+        # Queue to handle requests
+        self._queue = collections.deque()
 
     def get_rate_limit(self):
         return self._rate_limit
@@ -61,22 +63,47 @@ class ApiCircutBreakers:
             """Set this to Half-Open"""
 
         if current_count > hard_limit:
-            self._current_status = "CLOSED"
+            self._current_status = "OPEN"
             """Set this to closed."""
         return self._current_status
 
-    def handle_closed(self):
-        pass
+    def insert_queue(self, func, args, kwargs):
+        """Add arg to front of queue"""
+        self._queue.append((func, args, kwargs))
 
-    def handle_half_open(self):
-        pass
+    def process_queue(self):
+        if self._queue:
+            func, args, kwargs = self._queue.popleft()
+            return func(*args, **kwargs)
+        return None
+
+    def handle_half_open(self,func, *args, **kwargs):
+        if self._queue:
+            return self.process_queue()
+        else:
+            self.insert_queue(func, args, kwargs)
+            return None
+
+    def handle_closed(self,func, *args, **kwargs):
+        return func(*args, **kwargs)
 
 
-    def handle_open(self):
-        pass
+    def handle_open(self, func, *args, **kwargs):
+        self.insert_queue(func, args, kwargs)
+        return None
 
-    def __call__(self, *args,**kwargs):
-        pass
+    def __call__(self, func):
+        def wrapped_func(*args, **kwargs):
+            self._api_count += 1
+            status = self.get_status()
+
+            if status == "CLOSED":
+                return self.handle_closed(func, *args, **kwargs)
+            elif status == "HALF":
+                return self.handle_half_open(func, *args, **kwargs)
+            elif status == "OPEN":
+                return self.handle_open(func, *args, **kwargs)
+
+        return wrapped_func
 
 
-# TODO Finish deco for circut wrappers
