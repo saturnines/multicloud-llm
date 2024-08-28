@@ -14,8 +14,6 @@ class ApiCircuitBreakers:
         :para queue: queue system to be used when half-open
         """
         # This part is the internal count
-        self.__seconds = 0
-        self._run()
         self._lock = threading.Lock()
         self._last_reset_time = time.time()
 
@@ -42,27 +40,17 @@ class ApiCircuitBreakers:
     def get_hard_limit(self):
         return self._hard_limit
 
-    def _check_and_reset_count(self):
+    def __check_and_reset_count(self):
         current_time = time.time()
         if current_time - self._last_reset_time >= 60:
             self._api_count = 0
             self._last_reset_time = current_time
 
-    def _run(self):
-        self.__seconds += 1
-
-        if self.__seconds % 60 == 0:
-            self._api_count()
-
-        threading.Timer(1, self._run).start()
-
-    def reset_count(self):
-        self._api_count = 0
 
     def get_status(self):
         """May need to change this in the future"""
         with self._lock:
-            self._check_and_reset_count()
+            self.__check_and_reset_count()
             if self._api_count <= self._soft_limit:
                 self._current_status = "CLOSED"
             elif self._soft_limit < self._api_count <= self._hard_limit:
@@ -114,4 +102,4 @@ class ApiCircuitBreakers:
 
 
 
-# NEed to add logging too.
+# NEed to add logging too. # Will add try except blocks once I add logging.
