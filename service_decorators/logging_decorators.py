@@ -1,8 +1,8 @@
-import time
-import psutil
 import os
+import time
 from functools import wraps
 
+import psutil
 
 
 # Measure Time.
