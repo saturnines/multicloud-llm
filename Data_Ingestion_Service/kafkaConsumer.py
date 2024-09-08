@@ -47,6 +47,7 @@ def consume_and_trigger():
     finally:
         consumer.close()
 
+# REPLACE ALL PRINT MESSAGES WITH LOGGING SHIT
 
 if __name__ == "__main__":
     consume_and_trigger()
