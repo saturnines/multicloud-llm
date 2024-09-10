@@ -2,13 +2,11 @@ import asyncio
 import threading
 import time
 from functools import wraps
-from fastapi import Request
 from kafka import KafkaProducer, KafkaConsumer
 from kafka.errors import KafkaError
 from collections import deque
-from pydantic import json
 from Data_Ingestion_Service.QueryData import query_data
-
+import json
 
 class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
@@ -48,10 +46,8 @@ class ApiCircuitBreakers:
 
         except KafkaError as e:
             print(f"Caught a KafkaException: {e}")
-            # Replace print with logging
         finally:
             self._Producer.flush()
-            self._Producer.close()
 
     def send_to_queue(self):
         try:
@@ -82,12 +78,11 @@ class ApiCircuitBreakers:
                 self._current_status = "OPEN"
             return self._current_status
 
-
     async def process_from_queue(self):
         if self._queue:
             return self._queue.popleft()
         else:
-            self._queue.append(self.enqueue_tasks())
+            await asyncio.to_thread(self.enqueue_tasks)
         return None
 
     async def handle_closed(self):
@@ -106,9 +101,10 @@ class ApiCircuitBreakers:
     async def handle_open(self):
         return {"message": "Circuit is open, stopping requests", "status": "OPEN"}
 
+
     def __call__(self, func):
         @wraps(func)
-        async def wrapped_func(request: Request):
+        async def wrapped_func():
             # Ensure the queue is populated
             if not self._queue:
                 self._queue.append(self.enqueue_tasks())
