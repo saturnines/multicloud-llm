@@ -44,7 +44,12 @@ class ApiCircuitBreakers:
             print("Consuming messages from Kafka broker...")
             for message in consumer:
                 print(f"Message from partition {message.partition}, offset {message.offset}: {message.value}")
-                self._queue.append(message.value)  # Add the message to the processing queue
+                api_query = message.value.get('API_Query')
+                if api_query:
+                    self._queue.append(api_query)  # Add only the API_Query to the processing queue
+                    print(f"Enqueued: {api_query}")
+                else:
+                    print("No API_Query field found in the message.")
         except KafkaError as e:
             print(f"Caught KafkaError in consumer: {e}")
         finally:
@@ -57,7 +62,7 @@ class ApiCircuitBreakers:
                 message = {"API_Query": key, 'message': f'This is the query for {value}'}
                 future = self._Producer.send("api_query", value=message)
                 future.get(timeout=10)  # Wait for the message to be sent
-                print(f"Sent: {message}")
+                print(f"Sent to Kafka: {message}")
         except KafkaError as e:
             print(f"Caught a KafkaException: {e}")
         finally:
@@ -83,39 +88,29 @@ class ApiCircuitBreakers:
             return self._current_status
 
     async def process_from_queue(self):
-        """Process tasks from the queue and return the API_Query field."""
+        """Process tasks from the queue and return the API_Query."""
         if self._queue:
-            # Pop the message from the queue
-            task = self._queue.popleft()
-
-            # Extract and return just the 'API_Query' field
-            api_query = task.get('API_Query', None)
-
-            if api_query:
-                print(f"{api_query}")
-                return api_query
-            else:
-                print("No API_Query field found in the message.")
-                return None
+            api_query = self._queue.popleft()
+            print(f"Processing: {api_query}")
+            return api_query
         else:
-            # If the queue is empty, return None
+            print("Queue is empty, attempting to enqueue tasks")
             await asyncio.to_thread(self.enqueue_tasks)
             return None
 
-
     async def handle_closed(self):
         """Handle request in closed state."""
-        queued_request = await self.process_from_queue()
-        if queued_request:
-            return {"message": "Request processed from queue", "status": "CLOSED", "data": queued_request}
+        api_query = await self.process_from_queue()
+        if api_query:
+            return {"message": "Request processed from queue", "status": "CLOSED", "data": api_query}
         return {"message": "No request to process", "status": "CLOSED"}
 
     async def handle_half_open(self):
         """Handle request in half-open state with a delay."""
         await asyncio.sleep(2)
-        queued_request = await self.process_from_queue()
-        if queued_request:
-            return {"message": "Request processed from queue after delay", "status": "HALF", "data": queued_request}
+        api_query = await self.process_from_queue()
+        if api_query:
+            return {"message": "Request processed from queue after delay", "status": "HALF", "data": api_query}
         return {"message": "No request to process", "status": "HALF"}
 
     async def handle_open(self):
@@ -145,4 +140,30 @@ class ApiCircuitBreakers:
 
 
 
+async def process_all_messages(api_breaker):
+    # Testing Function
+    while True:
+        result = await api_breaker.process_from_queue()
+        if result:
+            print(f"Processed task from queue: {result}")
+        else:
+            print("Queue is empty, stopping the process.")
+            break  # Exit loop if no messages are left in the queue
 
+async def main():
+    # Testing function
+    api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=10, hard_limit=20, rate_limit=5)
+
+    api_breaker.enqueue_tasks()
+
+
+    await asyncio.sleep(5)
+    await process_all_messages(api_breaker)
+    print("Sending Queue")
+    for i in api_breaker._queue:
+        print(i)
+
+
+# Run the main function
+if __name__ == "__main__":
+    asyncio.run(main())
