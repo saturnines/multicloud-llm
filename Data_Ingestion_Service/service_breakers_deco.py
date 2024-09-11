@@ -8,6 +8,7 @@ from collections import deque
 from Data_Ingestion_Service.QueryData import query_data
 import json
 
+
 class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
         self._lock = threading.Lock()
@@ -21,53 +22,56 @@ class ApiCircuitBreakers:
 
         # Kafka Producer
         self._Producer = KafkaProducer(
-        bootstrap_servers='localhost:9092', # Start Connection Maybe change it?
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            bootstrap_servers='localhost:9092',
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
-        # Kafka Consumer
-        self._consumer = KafkaConsumer(
+
+        # Kafka Consumer in a separate thread
+        self._consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
+        self._consumer_thread.start()
+
+    def _consume_messages(self):
+        """Consume Kafka messages in a separate thread."""
+        consumer = KafkaConsumer(
             'api_query',
             bootstrap_servers=['localhost:9092'],
             auto_offset_reset='earliest',
             group_id='foo_group',
             value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-            enable_auto_commit=True  # offset for committing
+            enable_auto_commit=True
         )
+        try:
+            print("Consuming messages from Kafka broker...")
+            for message in consumer:
+                print(f"Message from partition {message.partition}, offset {message.offset}: {message.value}")
+                self._queue.append(message.value)  # Add the message to the processing queue
+        except KafkaError as e:
+            print(f"Caught KafkaError in consumer: {e}")
+        finally:
+            consumer.close()
 
     def enqueue_tasks(self):
-        """Grab from QueryData"""
+        """Send API queries to Kafka."""
         try:
             for key, value in query_data.items():
-                message = {"API_Query": value, 'message': f'This is the query for {key}'}
+                message = {"API_Query": key, 'message': f'This is the query for {value}'}
                 future = self._Producer.send("api_query", value=message)
-                # Wait for the message to be sent
-                future.get(timeout=10)
+                future.get(timeout=10)  # Wait for the message to be sent
                 print(f"Sent: {message}")
-
         except KafkaError as e:
             print(f"Caught a KafkaException: {e}")
         finally:
             self._Producer.flush()
 
-    def send_to_queue(self):
-        try:
-            print("Consuming messages from broker")
-            for message in self._consumer:
-                print(f"Message from partition {message.partition}, {message.offset}")
-                print(f"Message value:{message.value}")
-                return message.value  # This is the actual query
-        except KafkaError as e:
-            print(f"Caught a KafkaException:{e}")
-        finally:
-            self._consumer.close()
-
     def __check_and_reset_count(self):
+        """Reset API count every minute."""
         current_time = time.time()
         if current_time - self._last_reset_time >= 60:
             self._api_count = 0
             self._last_reset_time = current_time
 
     def get_status(self):
+        """Check the status of the circuit based on API count."""
         with self._lock:
             self.__check_and_reset_count()
             if self._api_count <= self._soft_limit:
@@ -79,36 +83,48 @@ class ApiCircuitBreakers:
             return self._current_status
 
     async def process_from_queue(self):
+        """Process tasks from the queue and return the API_Query field."""
         if self._queue:
-            return self._queue.popleft()
+            # Pop the message from the queue
+            task = self._queue.popleft()
+
+            # Extract and return just the 'API_Query' field
+            api_query = task.get('API_Query', None)
+
+            if api_query:
+                print(f"{api_query}")
+                return api_query
+            else:
+                print("No API_Query field found in the message.")
+                return None
         else:
+            # If the queue is empty, return None
             await asyncio.to_thread(self.enqueue_tasks)
-        return None
+            return None
+
 
     async def handle_closed(self):
-        # In closed state, process from queue if available, otherwise process the request directly
+        """Handle request in closed state."""
         queued_request = await self.process_from_queue()
         if queued_request:
-            return await queued_request
-
+            return {"message": "Request processed from queue", "status": "CLOSED", "data": queued_request}
+        return {"message": "No request to process", "status": "CLOSED"}
 
     async def handle_half_open(self):
-        # Send a delay of 2 seconds to process api
+        """Handle request in half-open state with a delay."""
         await asyncio.sleep(2)
-        await self.process_from_queue()
-        return {"message": "Circuit is half-open, request queued", "status": "HALF"}
+        queued_request = await self.process_from_queue()
+        if queued_request:
+            return {"message": "Request processed from queue after delay", "status": "HALF", "data": queued_request}
+        return {"message": "No request to process", "status": "HALF"}
 
     async def handle_open(self):
+        """Handle request in open state."""
         return {"message": "Circuit is open, stopping requests", "status": "OPEN"}
-
 
     def __call__(self, func):
         @wraps(func)
-        async def wrapped_func():
-            # Ensure the queue is populated
-            if not self._queue:
-                self._queue.append(self.enqueue_tasks())
-
+        async def wrapped_func(*args, **kwargs):
             with self._lock:
                 self._api_count += 1
                 status = self.get_status()
@@ -125,5 +141,8 @@ class ApiCircuitBreakers:
                 return {"error": "Internal server error", "status": status}
 
         return wrapped_func
+
+
+
 
 
