@@ -136,34 +136,3 @@ class ApiCircuitBreakers:
                 return {"error": "Internal server error", "status": status}
 
         return wrapped_func
-
-
-
-
-async def process_all_messages(api_breaker):
-    # Testing Function
-    while True:
-        result = await api_breaker.process_from_queue()
-        if result:
-            print(f"Processed task from queue: {result}")
-        else:
-            print("Queue is empty, stopping the process.")
-            break  # Exit loop if no messages are left in the queue
-
-async def main():
-    # Testing function
-    api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=10, hard_limit=20, rate_limit=5)
-
-    api_breaker.enqueue_tasks()
-
-
-    await asyncio.sleep(5)
-    await process_all_messages(api_breaker)
-    print("Sending Queue")
-    for i in api_breaker._queue:
-        print(i)
-
-
-# Run the main function
-if __name__ == "__main__":
-    asyncio.run(main())
