@@ -137,4 +137,3 @@ class ApiCircuitBreakers:
 
         return wrapped_func
 
-print("test")
