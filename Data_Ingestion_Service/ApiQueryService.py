@@ -1,41 +1,16 @@
-import Data_Ingestion_Service.kafkaProduer
-import Data_Ingestion_Service.kafkaConsumer
-from kafka.errors import KafkaError
-import service_decorators.service_breakers_deco
-from fastapi import FastAPI
+import httpx
+import uvicorn
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional
-import requests
+from typing import Optional, Dict, Any
+import asyncio
+from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
 
-# Functions for Kafka (query and fill data)
-producer_fill_data = Data_Ingestion_Service.kafkaProduer.query_data()
-retrigger_data = Data_Ingestion_Service.kafkaConsumer.consume_and_trigger()
-next_data = Data_Ingestion_Service.kafkaConsumer.get_next_message()
+# Initialize FastAPI app
+app = FastAPI()
 
-
-# Start of Data Query
-
-data_api = FastAPI()
-
-# Fill up The Data
-producer_fill_data()
-
-
-def kafka_data_grabber():
-    try:
-        next_query = next_data()
-
-        if next_data is None:
-            retrigger_data()
-        return next_query
-    except KafkaError as e:
-        print(f"KafkaException {e}")
-
-# Negative Cache
-neg_cache = {}
 
 class Metrics(BaseModel):
-    """Unsure if it some querys might be missing"""
     profitability: Optional[float] = None
     volatility: Optional[float] = None
     liquidity: Optional[float] = None
@@ -51,42 +26,62 @@ class Metrics(BaseModel):
     current_price: Optional[float] = None
     instant_sell: Optional[float] = None
 
-class ApiResult(BaseModel):
-    Signal: str
-    metrics: Metrics  # Nested dict.
+# main response model
+class ItemResponse(BaseModel):
+    signal: Optional[str] = None
+    metrics: Metrics
 
 
-@data_api.get("/get_next")
-@service_decorators.service_breakers_deco.ApiCircuitBreakers(0, 55, 90, 100)
-def query_data():
-    data = None
+api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=55, hard_limit=90, rate_limit=100)
+async def api_helper():
+    item = await api_breaker.process_from_queue()
+    if not item:
+        api_breaker.enqueue_tasks()
+        await asyncio.sleep(5)
+    if item:
+        return item
 
-    # Fetch data from Kafka
-    while data is None or data in neg_cache:
-        data = kafka_data_grabber()
+negative_cache = set([])
+
+
+@app.get("/get_item", response_model=ItemResponse)
+async def get_item():
+    """Internal endpoint to get an item with a 5-second delay"""
+    res = await api_helper() # skip the null block
 
     try:
-        # Query external API
-        response = requests.get(f"https://api.kevinsapi.net/items/?search_term={data}")
+        res = await api_helper()
+        if res is None:
+            return {"error": "No search term provided, query."}
 
-        if response.status_code == 200:
-            api_response = response.json()
-            # Validate response
-            result = ApiResult(**api_response)
-            return result
-        else:
-            neg_cache[data] = True  # cache the negative result
-            return {"error": "No data found for query", "query": data}
+        # 3 second delay because is faster than the actual api.
+        await asyncio.sleep(5)
+
+        # Assuming `res` is the search term
+        url = f"https://api.kevinsapi.net/items/?search_term={res}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # get both signal and metrics response
+                signal = data.get("Signal")
+                metrics_data = data.get("metrics", {})
+
+                # Return the response with pydantic
+                return ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
+
+            elif response.status_code == 404:
+                return {"error": "Item not found"}
+
+            elif response.status_code in {500, 503}:
+                return {"error": "Server error, please try again later"}
 
     except Exception as e:
-        print(f"API call failed: {e}")
-        return {"error": "Failed to fetch data"}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
-
-
-
-
-# https://api.kevinsapi.net/items/?search_term=wheat Api call example
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
