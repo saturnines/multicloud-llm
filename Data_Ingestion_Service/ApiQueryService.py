@@ -1,7 +1,7 @@
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from typing import Optional, Dict, Any
 import asyncio
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
@@ -47,15 +47,19 @@ negative_cache = set([])
 @app.get("/get_item", response_model=ItemResponse)
 async def get_item():
     """Internal endpoint to get an item with a 5-second delay"""
-    res = await api_helper() # skip the null block
 
     try:
+        # get search term
         res = await api_helper()
         if res is None:
             return {"error": "No search term provided, query."}
 
-        # 3 second delay because is faster than the actual api.
-        await asyncio.sleep(5)
+        # If res is in negative cache, call api_helper to get a fresh response
+        if res in negative_cache:
+            res = await api_helper()
+
+        # 4 second delay for slower api
+        await asyncio.sleep(4)
 
         # Assuming `res` is the search term
         url = f"https://api.kevinsapi.net/items/?search_term={res}"
@@ -66,12 +70,18 @@ async def get_item():
             if response.status_code == 200:
                 data = response.json()
 
-                # get both signal and metrics response
+                # get both signal and metrics
                 signal = data.get("Signal")
                 metrics_data = data.get("metrics", {})
 
-                # Return the response with pydantic
-                return ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
+                # validate  response
+                try:
+                    return ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
+
+                except ValidationError:
+                    # If the response does not fit the model, add to negative cache
+                    negative_cache.add(res)
+                    return {"error": "Data does not match expected format"}
 
             elif response.status_code == 404:
                 return {"error": "Item not found"}
@@ -79,9 +89,14 @@ async def get_item():
             elif response.status_code in {500, 503}:
                 return {"error": "Server error, please try again later"}
 
+        # If there's no response
+        negative_cache.add(res)
+        return {"error": "No response or invalid response"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+# Theresa  bug where the first api call is always None (lol)
