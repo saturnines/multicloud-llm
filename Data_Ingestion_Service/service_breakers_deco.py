@@ -136,3 +136,5 @@ class ApiCircuitBreakers:
                 return {"error": "Internal server error", "status": status}
 
         return wrapped_func
+
+print("test")
