@@ -7,7 +7,8 @@ from kafka.errors import KafkaError
 from collections import deque
 from Data_Ingestion_Service.QueryData import query_data
 import json
-
+import os
+from dotenv import load_dotenv
 
 class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
@@ -20,9 +21,11 @@ class ApiCircuitBreakers:
         self._hard_limit = hard_limit
         self._queue = deque()
 
+        kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
+
         # Kafka Producer
         self._Producer = KafkaProducer(
-            bootstrap_servers='localhost:9092',
+            bootstrap_servers=kafka_bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
 
