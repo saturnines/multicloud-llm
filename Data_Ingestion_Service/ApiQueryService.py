@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError
 from typing import Optional, Dict, Any
 import asyncio
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
-
+from Data_Ingestion_Service.testing import main
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -95,6 +95,23 @@ async def get_item():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class DataTestResponse(BaseModel):
+    Result: str
+    ErrorMessage: Optional[str] = None
+
+
+@app.get("/data_test", response_model=DataTestResponse)
+async def run_data_tests():
+    try:
+        test_result = await main()
+        if test_result == True:
+            return DataTestResponse(Result="True")
+        else:
+            return DataTestResponse(Result="False")
+    except Exception as e:
+        return DataTestResponse(Result="False", ErrorMessage=str(e))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
