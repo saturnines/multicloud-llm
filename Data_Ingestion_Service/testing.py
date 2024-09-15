@@ -29,24 +29,30 @@ async def query_api(search_term):
                 return None
 
 async def main():
-    # Enque Tasks
-    api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=10, hard_limit=20, rate_limit=5)
-    api_breaker.enqueue_tasks()
+    try:
+        # enqueue tasks
+        api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=10, hard_limit=20, rate_limit=5)
+        api_breaker.enqueue_tasks()
 
-    await asyncio.sleep(5)
-    await process_all_messages(api_breaker)
+        await asyncio.sleep(5)
+        await process_all_messages(api_breaker)
 
-    # Popping queries from the queue
-    x = api_breaker._queue.popleft()
-    y = api_breaker._queue.popleft()
-    z = api_breaker._queue.popleft()
+        # Popping queries from the queue
+        x = api_breaker._queue.popleft()
+        y = api_breaker._queue.popleft()
+        z = api_breaker._queue.popleft()
 
-    print(f"Processing queries: {x}, {y}, {z}")
+        print(f"Processing queries: {x}, {y}, {z}")
 
-    # query api
-    await query_api(x)
-    await query_api(y)
-    await query_api(z)
+        # Query API
+        await query_api(x)
+        await query_api(y)
+        await query_api(z)
+
+        return True
+    except Exception as e:
+        print(f"main() raised an exception: {e}")
+        return False
 
 class TestMainFunction(unittest.IsolatedAsyncioTestCase):
     async def test_main(self):
