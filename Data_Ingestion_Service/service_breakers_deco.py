@@ -2,6 +2,8 @@ import asyncio
 import threading
 import time
 from functools import wraps
+
+import aiohttp
 from kafka import KafkaProducer, KafkaConsumer
 from kafka.errors import KafkaError
 from collections import deque
@@ -9,6 +11,11 @@ from Data_Ingestion_Service.QueryData import query_data
 import json
 import os
 from dotenv import load_dotenv
+
+import os
+load_dotenv('DataEnv.env')
+
+
 
 class ApiCircuitBreakers:
     def __init__(self, api_count, soft_limit, hard_limit, rate_limit):
@@ -139,4 +146,3 @@ class ApiCircuitBreakers:
                 return {"error": "Internal server error", "status": status}
 
         return wrapped_func
-
