@@ -11,6 +11,7 @@ app = FastAPI()
 
 
 class Metrics(BaseModel):
+    """Model for expected API result"""
     profitability: Optional[float] = None
     volatility: Optional[float] = None
     liquidity: Optional[float] = None
@@ -61,7 +62,6 @@ async def get_item():
         # 4 second delay for slower api
         await asyncio.sleep(4)
 
-        # Assuming `res` is the search term
         url = f"https://api.kevinsapi.net/items/?search_term={res}"
 
         async with httpx.AsyncClient() as client:
