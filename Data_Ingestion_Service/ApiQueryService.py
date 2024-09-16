@@ -118,3 +118,4 @@ if __name__ == "__main__":
 
 # Theresa  bug where the first api call is always None (lol)
 # Add Logging
+# Make it OOP
