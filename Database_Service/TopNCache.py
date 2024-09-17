@@ -98,7 +98,10 @@ class TopNCache:
         self.cache = {}
         self.cap = capacity
 
+# problems, we need to access each listnode per lru access.?
 
+# Most likely we can just sort it on points s and just pop from the bottom once it's over cap
+# Or use a heap?? figure this out tomorw
 
 
 
