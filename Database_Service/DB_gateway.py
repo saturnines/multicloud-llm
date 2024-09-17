@@ -76,6 +76,9 @@ class APIGateway:
 
     async def send_to_caching(self):
         """Sends to LRU cache service"""
+        """Expected API RESULT
+        
+        """
         pass
 
 
@@ -85,5 +88,27 @@ class APIGateway:
 
 
 
+# Example api result
+"""
+{
+  "Signal": "Buy",
+  "metrics": {
+    "profitability": -98.3969501368968,
+    "volatility": -31901.683860371424,
+    "liquidity": 124.69620609103104,
+    "price_momentum": 30.17405152275776,
+    "relative_volume": 1572138.314079518,
+    "spread": -241.5227965997328,
+    "price_stability": 4711.62251119729,
+    "historical_buy_comparison": 4132.027661912025,
+    "historical_sell_comparison": -1.629805220883751,
+    "medium_sell": 4.0,
+    "medium_buy": 5.8,
+    "possible_profit": 0.19500000000000028,
+    "current_price": 124.69620609103104,
+    "instant_sell": 4.126199999999992
+  }
+}
 
+"""
 
