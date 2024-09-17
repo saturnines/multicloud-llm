@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 import os
 load_dotenv('DataBase.env')
 
+
+"""Secrets"""
+data_ip = os.getenv('INGESTION_IP')
+data_port = os.getenv('INGESTION_PORT')
+
 class Metrics(BaseModel):
     """Model for expected API result from Data Ingestion"""
     profitability: Optional[float] = None
@@ -53,4 +58,32 @@ class DataIngestion(ServiceClient):
         return await self.request("GET", f"/get_item")
 
 class APIGateway:
-    self.query_service = DataIngestion()
+    def __init__(self):
+        self.query_service = DataIngestion(data_ip + data_port)
+        self.caching_service = DataIngestion(None)
+        self.db_service = DataIngestion(None)
+
+
+    async def _get_query(self): # Test if this works tomorrow, then start the lru service.
+        """Gets from the Data Ingestion Service"""
+        try:
+            res = await self.query_service.query_item()
+            if res:
+                return res
+        except Exception as e:
+            return {"error": f"An error occurred: {str(e)}"}
+
+
+    async def send_to_caching(self):
+        """Sends to LRU cache service"""
+        pass
+
+
+    async def send_to_db(self):
+        """Sends to DB Service"""
+        pass
+
+
+
+
+
