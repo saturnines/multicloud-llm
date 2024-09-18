@@ -1,7 +1,9 @@
-from typing import Optional
+import heapq
+from typing import Optional, List, Dict
+import json
 
 
-class ListNode:
+class HeapNode:
     """A class to hold various financial metrics."""
 
     def __init__(self,
@@ -92,16 +94,75 @@ class ListNode:
 
         return res
 
-
 class TopNCache:
-    def __init__(self, capacity: int):
-        self.cache = {}
-        self.cap = capacity
+    def __init__(self, k: int):
+        self.HeapCache = []
+        self.cap = k
 
-# problems, we need to access each listnode per lru access.?
+    def add(self, heap_node: HeapNode):
+        heap_node.adjust_rank()
+        if len(self.HeapCache) < self.cap:
+            heapq.heappush(self.HeapCache, (-heap_node.get_rank(), heap_node))
+        elif -heap_node.get_rank() > self.HeapCache[0][0]:
+            heapq.heapreplace(self.HeapCache, (-heap_node.get_rank(), heap_node))
 
-# Most likely we can just sort it on points s and just pop from the bottom once it's over cap
-# Or use a heap?? figure this out tomorw
+    def get_cache(self):
+        """Return the cache as a JSON string"""
+        return json.dumps([
+            self.extract_node_data(node)
+            for _, node in sorted(self.HeapCache, reverse=True)
+        ])
+
+    @staticmethod
+    def extract_node_data(heap_node: HeapNode):
+        return {
+            "signal": heap_node.get_signal(),
+            "profitability": heap_node.get_profitability(),
+            "volatility": heap_node.get_volatility(),
+            "liquidity": heap_node.get_liquidity(),
+            "price_stability": heap_node.get_price_stability(),
+            "relative_volume": heap_node.get_relative_volume(),
+            "possible_profit": heap_node.get_possible_profit(),
+            "current_price": heap_node.get_current_price(),
+            "rank": heap_node.get_rank()
+        }
+
+    def get_averages(self) -> Dict[str, float]:
+        """Calculate and return average metrics"""
+        if not self.HeapCache:
+            return {}
+
+        metrics = [
+            "profitability", "volatility", "liquidity", "price_stability",
+            "relative_volume", "possible_profit", "current_price", "rank"
+        ]
+
+        sums = {metric: 0 for metric in metrics}
+        count = len(self.HeapCache)
+
+        for _, node in self.HeapCache:
+            for metric in metrics:
+                value = getattr(node, f"get_{metric}")()
+                if value is not None:
+                    sums[metric] += value
+
+        averages = {metric: sums[metric] / count for metric in metrics if sums[metric] != 0}
+
+        return averages
+
+    def get_cache_with_averages(self):
+        """Return the cache data along with averages as a JSON string"""
+        cache_data = json.loads(self.get_cache())
+        averages = self.get_averages()
+
+        result = {
+            "cache_data": cache_data,
+            "averages": averages
+        }
+
+        return json.dumps(result)
+
+
 
 
 
