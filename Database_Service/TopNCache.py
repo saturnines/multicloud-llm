@@ -14,7 +14,9 @@ class HeapNode:
                  price_stability: Optional[float] = 0,
                  relative_volume: Optional[float] = 0,
                  possible_profit: Optional[float] = 0,
-                 current_price: Optional[float] = 0):
+                 current_price: Optional[float] = 0,
+                 search_query: Optional[str] = None):
+
         # Initialize attributes
         self.signal = signal
         self.profitability = profitability
@@ -24,7 +26,11 @@ class HeapNode:
         self.relative_volume = relative_volume
         self.possible_profit = possible_profit
         self.current_price = current_price
+        self.search_query = search_query
         self.rank = None
+
+    def get_search_query(self) -> Optional[str]:
+        return self.search_query
 
     def get_signal(self) -> [str]:
         return self.signal
@@ -116,6 +122,7 @@ class TopNCache:
     @staticmethod
     def extract_node_data(heap_node: HeapNode):
         return {
+            "name": heap_node.get_search_query(),
             "signal": heap_node.get_signal(),
             "profitability": heap_node.get_profitability(),
             "volatility": heap_node.get_volatility(),
