@@ -1,7 +1,4 @@
 from decimal import Decimal
-
-import httpx
-from fastapi import FastAPI, HTTPException
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -57,7 +54,7 @@ class DataBaseCreator:
 
         # Jesus christ
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS suggestions (
+            CREATE TABLE IF NOT EXISTS data_metrics (
                 id SERIAL PRIMARY KEY,
                 signal VARCHAR(10),
                 profitability DECIMAL(20,10),
@@ -117,15 +114,14 @@ class DB_Operations:
 
         self.db_connection = DatabaseManager()
         # Not sure if this is good since it runs inf
-        self.db_connection.start_connection()
-
+        self.conn =self.db_connection.start_connection()
+        self.cur = self.conn.cursor()
 
     def insert_signal_data(self, signal_data: SignalData):
-
-
+        """Insert API Result into DB"""
         try:
             query = """
-            INSERT INTO suggestions
+            INSERT INTO data_metrics
             (signal, profitability, volatility, liquidity, price_momentum, 
             relative_volume, spread, price_stability, historical_buy_comparison, 
             historical_sell_comparison, medium_sell, medium_buy, possible_profit, 
@@ -155,7 +151,40 @@ class DB_Operations:
         except Exception as e:
             self.conn.rollback()
             print(f"An error occurred: {e}")
-# Create if not in
-# read
+
+    def delete_signal_data(self, signal_data: SignalData):
+        try:
+            query = """
+            DELETE FROM data_metrics
+            (signal, profitability, volatility, liquidity, price_momentum, 
+            relative_volume, spread, price_stability, historical_buy_comparison, 
+            historical_sell_comparison, medium_sell, medium_buy, possible_profit, 
+            current_price, instant_sell)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            values = (
+                signal_data.Signal,
+                signal_data.metrics.profitability,
+                signal_data.metrics.volatility,
+                signal_data.metrics.liquidity,
+                signal_data.metrics.price_momentum,
+                signal_data.metrics.relative_volume,
+                signal_data.metrics.spread,
+                signal_data.metrics.price_stability,
+                signal_data.metrics.historical_buy_comparison,
+                signal_data.metrics.historical_sell_comparison,
+                signal_data.metrics.medium_sell,
+                signal_data.metrics.medium_buy,
+                signal_data.metrics.possible_profit,
+                signal_data.metrics.current_price,
+                signal_data.metrics.instant_sell
+            )
+            self.cur.execute(query, values)
+            self.conn.commit()
+            print("Data inserted successfully")
+        except Exception as e:
+            self.conn.rollback()
+            print(f"An error occurred: {e}")
+
 # update if exists
 
