@@ -3,9 +3,10 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import psycopg2
-
-
+from psycopg2.extras import DictCursor
+from contextlib import contextmanager
 import os
+
 load_dotenv('DataBase.env')
 
 # Variables
@@ -32,6 +33,7 @@ class Metrics(BaseModel):
     current_price: Decimal
     instant_sell: Decimal
 
+
 class SignalData(BaseModel):
     Signal: str
     metrics: Metrics
@@ -39,6 +41,7 @@ class SignalData(BaseModel):
 
 class DataBaseCreator:
     """Create DataBase"""
+
     def __init__(self):
         self.db_host = db_host
         self.db_user = db_user
@@ -48,7 +51,8 @@ class DataBaseCreator:
 
     def create_db(self):
         """Creates the db with schema"""
-        conn = psycopg2.connect(host=self.db_host, dbname=self.db_host, user=self.db_user, password=self.db_password, port=self.db_port)
+        conn = psycopg2.connect(host=self.db_host, dbname=self.db_host, user=self.db_user, password=self.db_password,
+                                port=self.db_port)
 
         cur = conn.cursor()
 
@@ -82,109 +86,96 @@ class DataBaseCreator:
 
 class DatabaseManager:
     def __init__(self):
-
         self.db_host = db_host
         self.db_user = db_user
         self.db_name = db_name
         self.db_password = db_password
         self.db_port = db_port
 
+    @contextmanager
+    def get_connection(self):
+        conn = None
+        try:
+            conn = psycopg2.connect(
+                host=self.db_host,
+                dbname=self.db_name,
+                user=self.db_user,
+                password=self.db_password,
+                port=self.db_port
+            )
+            yield conn
+        finally:
+            if conn:
+                conn.close()
 
-
-
-    def start_connection(self):
-        conn = psycopg2.connect(
-            host=self.db_host,
-            dbname=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD'),
-            port=os.getenv('DB_PORT')
-        )
-        return conn
+    @contextmanager
+    def get_cursor(self, commit=False):
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=DictCursor)
+            try:
+                yield cursor
+                if commit:
+                    conn.commit()
+            finally:
+                cursor.close()
 
 
 class DB_Operations:
     def __init__(self):
-
-        self.db_host = db_host
-        self.db_user = db_user
-        self.db_name = db_name
-        self.db_password = db_password
-        self.db_port = db_port
-
-        self.db_connection = DatabaseManager()
-        # Not sure if this is good since it runs inf
-        self.conn =self.db_connection.start_connection()
-        self.cur = self.conn.cursor()
+        self.db_manager = DatabaseManager()
 
     def insert_signal_data(self, signal_data: SignalData):
-        """Insert API Result into DB"""
+        query = """
+        INSERT INTO data_metrics
+        (signal, profitability, volatility, liquidity, price_momentum, 
+        relative_volume, spread, price_stability, historical_buy_comparison, 
+        historical_sell_comparison, medium_sell, medium_buy, possible_profit, 
+        current_price, instant_sell)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        values = (
+            signal_data.Signal,
+            signal_data.metrics.profitability,
+            signal_data.metrics.volatility,
+            signal_data.metrics.liquidity,
+            signal_data.metrics.price_momentum,
+            signal_data.metrics.relative_volume,
+            signal_data.metrics.spread,
+            signal_data.metrics.price_stability,
+            signal_data.metrics.historical_buy_comparison,
+            signal_data.metrics.historical_sell_comparison,
+            signal_data.metrics.medium_sell,
+            signal_data.metrics.medium_buy,
+            signal_data.metrics.possible_profit,
+            signal_data.metrics.current_price,
+            signal_data.metrics.instant_sell
+        )
+
         try:
-            query = """
-            INSERT INTO data_metrics
-            (signal, profitability, volatility, liquidity, price_momentum, 
-            relative_volume, spread, price_stability, historical_buy_comparison, 
-            historical_sell_comparison, medium_sell, medium_buy, possible_profit, 
-            current_price, instant_sell)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            values = (
-                signal_data.Signal,
-                signal_data.metrics.profitability,
-                signal_data.metrics.volatility,
-                signal_data.metrics.liquidity,
-                signal_data.metrics.price_momentum,
-                signal_data.metrics.relative_volume,
-                signal_data.metrics.spread,
-                signal_data.metrics.price_stability,
-                signal_data.metrics.historical_buy_comparison,
-                signal_data.metrics.historical_sell_comparison,
-                signal_data.metrics.medium_sell,
-                signal_data.metrics.medium_buy,
-                signal_data.metrics.possible_profit,
-                signal_data.metrics.current_price,
-                signal_data.metrics.instant_sell
-            )
-            self.cur.execute(query, values)
-            self.conn.commit()
+            with self.db_manager.get_cursor(commit=True) as cur:
+                cur.execute(query, values)
             print("Data inserted successfully")
         except Exception as e:
-            self.conn.rollback()
             print(f"An error occurred: {e}")
 
-    def delete_signal_data(self, signal_data: SignalData):
+    def delete_signal_data(self, signal: str):
+        query = "DELETE FROM data_metrics WHERE signal = %s"
         try:
-            query = """
-            DELETE FROM data_metrics
-            (signal, profitability, volatility, liquidity, price_momentum, 
-            relative_volume, spread, price_stability, historical_buy_comparison, 
-            historical_sell_comparison, medium_sell, medium_buy, possible_profit, 
-            current_price, instant_sell)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            values = (
-                signal_data.Signal,
-                signal_data.metrics.profitability,
-                signal_data.metrics.volatility,
-                signal_data.metrics.liquidity,
-                signal_data.metrics.price_momentum,
-                signal_data.metrics.relative_volume,
-                signal_data.metrics.spread,
-                signal_data.metrics.price_stability,
-                signal_data.metrics.historical_buy_comparison,
-                signal_data.metrics.historical_sell_comparison,
-                signal_data.metrics.medium_sell,
-                signal_data.metrics.medium_buy,
-                signal_data.metrics.possible_profit,
-                signal_data.metrics.current_price,
-                signal_data.metrics.instant_sell
-            )
-            self.cur.execute(query, values)
-            self.conn.commit()
-            print("Data inserted successfully")
+            with self.db_manager.get_cursor(commit=True) as cur:
+                cur.execute(query, (signal,))
+            print("Data deleted successfully")
         except Exception as e:
-            self.conn.rollback()
             print(f"An error occurred: {e}")
 
-# update if exists
+    def read_signal_data(self, signal: str):
+        query = "SELECT * FROM data_metrics WHERE signal = %s"
+        try:
+            with self.db_manager.get_cursor() as cur:
+                cur.execute(query, (signal,))
+                return cur.fetchall()
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+
+
 
