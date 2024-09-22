@@ -4,7 +4,7 @@ import json
 
 
 class HeapNode:
-    """A class to hold various financial metrics."""
+    """ hold various financial metrics."""
 
     def __init__(self,
                  signal: [str] = None,
@@ -162,7 +162,7 @@ class TopNCache:
 
         return json.dumps(result)
 
-
+# TODO TEST
 
 
 
