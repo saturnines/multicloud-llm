@@ -1,13 +1,35 @@
+from typing import Optional
 
 from dotenv import load_dotenv
-
+from pydantic import BaseModel
 
 load_dotenv('DataBase.env')
-
-
 import os
-from fastapi import FastAPI
-import SQLDataBase  # Assuming this is your module with DB operations
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI()
+import SQLDataBase
+
+
+class SignalData(BaseModel):
+    profitability: Optional[float] = None
+    volatility: Optional[float] = None
+    liquidity: Optional[float] = None
+    price_momentum: Optional[float] = None
+    relative_volume: Optional[float] = None
+    spread: Optional[float] = None
+    price_stability: Optional[float] = None
+    historical_buy_comparison: Optional[float] = None
+    historical_sell_comparison: Optional[float] = None
+    medium_sell: Optional[float] = None
+    medium_buy: Optional[float] = None
+    possible_profit: Optional[float] = None
+    current_price: Optional[float] = None
+    instant_sell: Optional[float] = None
+
+class SignalDataModel(BaseModel):
+    Signal: str
+    metrics: SignalData
 
 class DataBaseInfo:
     def __init__(self):
@@ -38,34 +60,40 @@ class DatabaseManager:
         self.dbCRUD = SQLDataBase.DB_Operations()
         self.app = FastAPI()
 
-    async def send_to_db(self, query):
+
+    @app.post("/api/v1/create_data/")
+    async def create_data(self, data_model):
         try:
-            await self.dbCRUD.upsert_signal_data(query)
+            await self.dbCRUD.upsert_signal_data(data_model)
+            return {"message": "Data sent to the DB successfully!"}
         except Exception as e:
             print(f"Failed to send data to DB: {e}")
-            # You can re-raise the exception if needed
-            # raise
+            raise HTTPException(status_code=500, detail="DB Error!")
 
+    @app.post("/api/v1/delete_data/")
     async def delete_from_db(self, query):
         try:
             await self.dbCRUD.delete_signal_data(query)
+            return {"message": "Data remove from the DB successfully!"}
+
         except Exception as e:
             print(f"Failed to delete data from DB: {e}")
-            # raise
+            raise HTTPException(status_code=500, detail="DB Error!")
 
+    @app.post("/api/v1/read_data/")
     async def read_from_db(self, query):
         try:
             return await self.dbCRUD.read_signal_data(query)
+            # Add logging here
         except Exception as e:
-            print(f"Failed to read data from DB: {e}")
-            return None
+            raise HTTPException(status_code=500, detail="DB Error!")
 
+    @app.post("/api/v1/random_data/")
     async def get_random_five(self):
         try:
             return await self.dbCRUD.get_random_five()
         except Exception as e:
-            print(f"Failed to retrieve random five entries from DB: {e}")
-            return []
+            raise HTTPException(status_code=500, detail="DB Error!")
 
 # TODO
 # make routes
