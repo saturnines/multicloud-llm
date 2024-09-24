@@ -59,7 +59,7 @@ class DatabaseManager:
         self.db = SQLDataBase.DatabaseManager()
         self.dbCRUD = SQLDataBase.DB_Operations()
         self.app = FastAPI()
-
+        self.create = SQLDataBase.DataBaseCreator()
 
     @app.post("/api/v1/create_data/")
     async def create_data(self, data_model):
@@ -74,7 +74,7 @@ class DatabaseManager:
     async def delete_from_db(self, query):
         try:
             await self.dbCRUD.delete_signal_data(query)
-            return {"message": "Data remove from the DB successfully!"}
+            return {"message": "Data removed from the DB successfully!"}
 
         except Exception as e:
             print(f"Failed to delete data from DB: {e}")
@@ -86,6 +86,7 @@ class DatabaseManager:
             return await self.dbCRUD.read_signal_data(query)
             # Add logging here
         except Exception as e:
+            print(f"Failed to read data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
     @app.post("/api/v1/random_data/")
@@ -93,10 +94,10 @@ class DatabaseManager:
         try:
             return await self.dbCRUD.get_random_five()
         except Exception as e:
+            print(f"Failed to random data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
-# TODO
-# make routes
-# should be finished , remember  start the db
-# add logging . health checks
-T
+if __name__ == "__main__":
+    import uvicorn
+    x = DatabaseManager()
+    uvicorn.run(app, host="0.0.0.0", port=8001)
