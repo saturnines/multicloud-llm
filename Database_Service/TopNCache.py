@@ -4,7 +4,7 @@ import json
 
 
 class HeapNode:
-    """ hold various financial metrics."""
+    """Hold various financial metrics."""
 
     def __init__(self,
                  signal: [str] = None,
@@ -28,6 +28,7 @@ class HeapNode:
         self.current_price = current_price
         self.search_query = search_query
         self.rank = None
+        self.adjust_rank()
 
     def get_search_query(self) -> Optional[str]:
         return self.search_query
@@ -60,9 +61,8 @@ class HeapNode:
         return self.rank
 
     def adjust_rank(self) -> Optional[int]:
-        rank = self._calculate()
-        self.rank = rank
-        return
+        self.rank = self._calculate()  # Set the calculated rank
+        return self.rank  # Optionally return the rank
 
     def _calculate(self) -> int:
         """Trading algo for Cache - Calculates a score based on metrics."""
@@ -75,26 +75,30 @@ class HeapNode:
             res += 50
         else:
             res += 0
-        # adjust for profit
 
+        # Adjust for profit
         if self.get_profitability() > 0:
             res += 20
-        # adjust for get_vol
+
+        # Adjust for volatility
         if self.get_volatility() < -5:
             res -= 10
         elif self.get_volatility() > 0:
             res += 10
-        # adjust for liquid
+
+        # Adjust for liquidity
         if self.get_liquidity() > 500000:
             res += 30
-        # adjust for price stab
+
+        # Adjust for price stability
         if self.get_price_stability() > 50:
             res += 15
-        # just for rel vol
+
+        # Adjust for relative volume
         if self.get_relative_volume() > 0.1:
             res += 10
 
-        # Adjust for profit
+        # Adjust for possible profit
         if self.get_possible_profit() > 0:
             res += 25
 
