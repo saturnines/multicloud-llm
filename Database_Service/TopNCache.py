@@ -65,44 +65,54 @@ class HeapNode:
         return self.rank  # Optionally return the rank
 
     def _calculate(self) -> int:
-        """Trading algo for Cache - Calculates a score based on metrics."""
-        res = 0
+        """Helper function to calculate ranks"""
 
-        # Check signal and assign points
+        # Initialize score
+        score = 0
+
+        # Weights
+        profitability_weight = 2.0  # Higher weight for profits
+        volatility_weight = -1.5  # Negative weight for high volatility
+        liquidity_weight = 1.2  # Medium weight for liquidity (Not sure if I should do this higher or not)
+        price_stability_weight = 0.8  # Lower weight for price stability
+        relative_volume_weight = 0.4  # Lower weight for relative volume
+        possible_profit_weight = 1.5  # High weight for possible profit
+
+        # Signal weighting
         if self.get_signal() == "BUY":
-            res += 100
+            score += 100
         elif self.get_signal() == "WATCH":
-            res += 50
-        else:
-            res += 0
+            score += 50
 
-        # Adjust for profit
-        if self.get_profitability() > 0:
-            res += 20
+        # Profitability: the higher, the better
+        if self.get_profitability() is not None:
+            score += self.get_profitability() * profitability_weight
 
-        # Adjust for volatility
-        if self.get_volatility() < -5:
-            res -= 10
-        elif self.get_volatility() > 0:
-            res += 10
+        # Volatility: high vol is bad
+        if self.get_volatility() is not None:
+            if self.get_volatility() > 0:
+                score -= self.get_volatility() * volatility_weight
+            elif self.get_volatility() < -5:  # Penalize high vol (Should fine-tune this)
+                score += self.get_volatility() * volatility_weight
 
-        # Adjust for liquidity
-        if self.get_liquidity() > 500000:
-            res += 30
+        # liquidity check
+        if self.get_liquidity() is not None and self.get_liquidity() > 500000:
+            score += (self.get_liquidity() / 500000) * liquidity_weight  # Scale liquidity
 
-        # Adjust for price stability
-        if self.get_price_stability() > 50:
-            res += 15
+        # price stability check more stability is good
+        if self.get_price_stability() is not None:
+            score += self.get_price_stability() * price_stability_weight
 
-        # Adjust for relative volume
-        if self.get_relative_volume() > 0.1:
-            res += 10
+        # relative volume check
+        if self.get_relative_volume() is not None:
+            score += self.get_relative_volume() * relative_volume_weight
 
-        # Adjust for possible profit
-        if self.get_possible_profit() > 0:
-            res += 25
+        # Possible Profit: biggest weight
+        if self.get_possible_profit() is not None:
+            score += self.get_possible_profit() * possible_profit_weight
 
-        return res
+        return round(score)
+
 
 class TopNCache:
     def __init__(self, k: int):
@@ -174,7 +184,4 @@ class TopNCache:
         return json.dumps(result)
 
 # TODO TEST
-
-
-
-
+# Data might be sorted by least to most need to fix
