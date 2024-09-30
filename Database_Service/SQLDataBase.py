@@ -1,4 +1,5 @@
 import os
+from asyncio import Lock
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -77,32 +78,40 @@ class DataBaseCreator:
 
 class DatabaseManager:
     def __init__(self):
-        self.db_host = db_host
-        self.db_user = db_user
-        self.db_name = db_name
-        self.db_password = db_password
-        self.db_port = db_port
         self.pool = None
+        self.lock = Lock()
+
+    async def get_pool(self):
+        if self.pool is None or self.pool.is_closed():
+            async with self.lock:
+                if self.pool is None or self.pool.is_closed():
+                    self.pool = await self.create_pool()
+        return self.pool
 
     async def create_pool(self):
-        self.pool = await asyncpg.create_pool(
-            host=self.db_host,
-            database=self.db_name,
-            user=self.db_user,
-            password=self.db_password,
-            port=self.db_port
+        return await asyncpg.create_pool(
+            host=db_host,
+            database=db_name,
+            user=db_user,
+            password=db_password,
+            port=db_port,
+            min_size=5,
+            max_size=20  # Adjust these numbers based on your needs
         )
 
-    @asynccontextmanager
-    async def get_connection(self):
-        if not self.pool:
-            await self.create_pool()
-        async with self.pool.acquire() as conn:
-            yield conn
+    async def close_pool(self):
+        if self.pool:
+            await self.pool.close()
 
 class DB_Operations:
     def __init__(self):
         self.db_manager = DatabaseManager()
+
+    async def execute_query(self, query, *args):
+        """Async SQL query using the db pool"""
+        pool = await self.db_manager.get_pool()
+        async with pool.acquire() as conn:
+            return await conn.fetch(query, *args)
 
     async def upsert_signal_data(self, signal_data: SignalData):
         delete_query = "DELETE FROM data_metrics WHERE search_query = $1"
@@ -135,7 +144,7 @@ class DB_Operations:
         )
 
         try:
-            async with self.db_manager.get_connection() as conn:
+            async with self.db_manager.get_pool() as conn:
                 await conn.execute(delete_query, signal_data.metrics.search_query)
                 await conn.execute(insert_query, *values)
             print("Data upserted successfully")
@@ -145,7 +154,7 @@ class DB_Operations:
     async def read_signal_data(self, search_query: str):
         query = "SELECT * FROM data_metrics WHERE search_query = $1"
         try:
-            async with self.db_manager.get_connection() as conn:
+            async with self.db_manager.get_pool() as conn:
                 return await conn.fetch(query, search_query)
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -154,7 +163,7 @@ class DB_Operations:
     async def delete_signal_data(self, search_query: str):
         query = "DELETE FROM data_metrics WHERE search_query = $1"
         try:
-            async with self.db_manager.get_connection() as conn:
+            async with self.db_manager.get_pool() as conn:
                 await conn.execute(query, search_query)
             print("Data deleted successfully")
         except Exception as e:
@@ -170,7 +179,7 @@ class DB_Operations:
         LIMIT 5
         """
         try:
-            async with self.db_manager.get_connection() as conn:
+            async with self.db_manager.get_pool() as conn:
                 return await conn.fetch(query)
         except Exception as e:
             print(f"An error occurred: {e}")
