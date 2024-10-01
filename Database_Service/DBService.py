@@ -1,15 +1,9 @@
-from typing import Optional
-
 from dotenv import load_dotenv
-from pydantic import BaseModel
-
 load_dotenv('DataBase.env')
-import os
 from fastapi import FastAPI, HTTPException
-
 app = FastAPI()
-import SQLDataBase
-
+from SQLDataBase import *
+import uvicorn
 
 class SignalData(BaseModel):
     profitability: Optional[float] = None
@@ -54,50 +48,87 @@ class DataBaseInfo:
     def get_db_port(self):
         return self.db_port
 
-class DatabaseManager:
+class DatabaseBusHelper:
     def __init__(self):
-        self.db = SQLDataBase.DatabaseManager()
-        self.dbCRUD = SQLDataBase.DB_Operations()
-        self.app = FastAPI()
-        self.create = SQLDataBase.DataBaseCreator()
+        self.DataBaseInfo = DataBaseInfo()
+        self.DataBaseManager = DatabaseManager()
+        self.DataBaseCRUD = DB_Operations()
+        self.DataBaseCreate = DataBaseCreator()
 
-    @app.post("/api/v1/create_data/")
-    async def create_data(self, data_model):
+
+    async def upsert_create(self, data_model):
         try:
-            await self.dbCRUD.upsert_signal_data(data_model)
-            return {"message": "Data sent to the DB successfully!"}
+            await self.DataBaseCRUD.upsert_signal_data(data_model)
+            return {"message": "Data send to DB"}
         except Exception as e:
             print(f"Failed to send data to DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
-    @app.post("/api/v1/delete_data/")
-    async def delete_from_db(self, query):
-        try:
-            await self.dbCRUD.delete_signal_data(query)
-            return {"message": "Data removed from the DB successfully!"}
 
+    async def read_data(self, data_model):
+        try:
+            read_data =  self.DataBaseCRUD.read_signal_data(data_model)
+            return read_data
         except Exception as e:
-            print(f"Failed to delete data from DB: {e}")
+            print(f"Failed to get data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
-    @app.post("/api/v1/read_data/")
-    async def read_from_db(self, query):
+
+    async def delete_data(self, data_model):
         try:
-            return await self.dbCRUD.read_signal_data(query)
-            # Add logging here
+            await self.DataBaseCRUD.delete_signal_data(data_model)
+            return {"message": "Data Deleted!!"}
         except Exception as e:
-            print(f"Failed to read data from DB: {e}")
+            print(f"Failed to get data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
-    @app.post("/api/v1/random_data/")
-    async def get_random_five(self):
+    async def get_random_data(self):
         try:
-            return await self.dbCRUD.get_random_five()
+            data = await self.DataBaseCRUD.get_random_five()
+            return data
         except Exception as e:
-            print(f"Failed to random data from DB: {e}")
+            print(f"Failed to get data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
+
+
+EventBus = DatabaseBusHelper()
+@app.post("/api/v1/upsert_data/")
+async def upsert_data(data):
+    try:
+         return await EventBus.upsert_create(data)
+    except Exception as e:
+        print(f"Error as {e}, check logs.")
+        raise HTTPException(status_code=500, detail="DB Error!")
+
+@app.post("/api/v1/read_data/")
+async def read_data(data):
+    try:
+        data = await EventBus.read_data(data)
+        return data
+    except Exception as e:
+        print(f"Error as {e}, check logs.")
+        raise HTTPException(status_code=500, detail="DB Error!")
+
+@app.post("/api/v1/delete_data/")
+async def delete_data(data):
+    try:
+        return await EventBus.delete_data(data)
+
+    except Exception as e:
+        print(f"Error as {e}, check logs.")
+        raise HTTPException(status_code=500, detail="DB Error!")
+
+@app.post("/api/v1/random_data/")
+async def get_random_data():
+    try:
+        data = await EventBus.get_random_data()
+        return data
+    except Exception as e:
+        print(f"Error as {e}, check logs.")
+        raise HTTPException(status_code=500, detail="DB Error!")
+
+
+
 
 if __name__ == "__main__":
-    import uvicorn
-    x = DatabaseManager()
     uvicorn.run(app, host="0.0.0.0", port=8001)
