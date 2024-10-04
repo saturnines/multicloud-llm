@@ -1,17 +1,21 @@
 import httpx
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
-
+app = FastAPI()
 import os
-load_dotenv('DataBase.env')
 
+load_dotenv('DataBase.env')
+from TopNCache import *
 
 """Secrets"""
 data_ip = os.getenv('INGESTION_IP')
 data_port = os.getenv('INGESTION_PORT')
 
+
+# I should have made a data serializer and deserializer ugh
 class Metrics(BaseModel):
     """Model for expected API result from Data Ingestion"""
     profitability: Optional[float] = None
@@ -52,19 +56,37 @@ class ServiceClient:
                 # Should never happen
                 raise HTTPException(status_code=500, detail="Internal server error")
 
+
 class DataIngestion(ServiceClient):
     """Call this to get one item from the Data_ingestion_Service"""
+
     async def query_item(self) -> Optional[Dict[str, Any]]:
         return await self.request("GET", f"/get_item")
+
+
+class CacheObject:
+    def __init__(self):
+        self.cache = TopNCache(20)
+
+    async def add_to_cache(self, node):
+        self.cache.add(node)
+        # add logging
+
+    async def get_cache(self):
+        return self.cache.get_cache()
+        # add logging
+
+    async def get_avg_cache(self):
+        return self.cache.get_cache_with_averages()
+        # add logging
+
 
 class APIGateway:
     def __init__(self):
         self.query_service = DataIngestion(data_ip + data_port)
-        self.caching_service = DataIngestion(None)
         self.db_service = DataIngestion(None)
 
-
-    async def _get_query(self): # Test if this works tomorrow, then start the lru service.
+    async def _get_query(self):  # Test if this works tomorrow, then start the lru service.
         """Gets from the Data Ingestion Service"""
         try:
             res = await self.query_service.query_item()
@@ -73,42 +95,38 @@ class APIGateway:
         except Exception as e:
             return {"error": f"An error occurred: {str(e)}"}
 
-
-    async def send_to_caching(self):
-        """Sends to LRU cache service"""
-        """Expected API RESULT
-        
-        """
-        pass
-
-
-    async def send_to_db(self):
-        """Sends to DB Service"""
+    async def send_to_dbs(self, node):
+        """Sends to DB Services, Add an event response for successful db additions."""
         pass
 
 
 
-# Example api result
-"""
-{
-  "Signal": "Buy",
-  "metrics": {
-    "profitability": -98.3969501368968,
-    "volatility": -31901.683860371424,
-    "liquidity": 124.69620609103104,
-    "price_momentum": 30.17405152275776,
-    "relative_volume": 1572138.314079518,
-    "spread": -241.5227965997328,
-    "price_stability": 4711.62251119729,
-    "historical_buy_comparison": 4132.027661912025,
-    "historical_sell_comparison": -1.629805220883751,
-    "medium_sell": 4.0,
-    "medium_buy": 5.8,
-    "possible_profit": 0.19500000000000028,
-    "current_price": 124.69620609103104,
-    "instant_sell": 4.126199999999992
-  }
-}
+# Ideally Send to caching would also call an add_top_ncache too, Gotta think about interservice communication
+@app.get("api/v1/get_cache_avg")
+async def get_top_n_cache():
+    """Return Cache Average"""
+    try:
+        await top_n.get_avg_cache()
+    except Exception as e:
+        print(f"Error as {e}")
 
-"""
+@app.get("api/v1/get_cache")
+async def get_top_n_cache():
+    """Return Top-N Cache"""
+    try:
+        await top_n.get_cache()
+    except Exception as e:
+        print(f"Error as {e}")
 
+@app.post("api/v1/cache_add")
+async def get_top_n_cache(node):
+    """add to cache"""
+    try:
+        await top_n.add_to_cache(node)
+    except Exception as e:
+        print(f"Error as {e}")
+
+
+if __name__ == "__main__":
+    top_n = CacheObject()
+    uvicorn.run(app, host="0.0.0.0", port=8002)
