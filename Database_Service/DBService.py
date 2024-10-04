@@ -59,7 +59,7 @@ class DatabaseBusHelper:
     async def upsert_create(self, data_model):
         try:
             await self.DataBaseCRUD.upsert_signal_data(data_model)
-            return {"message": "Data send to DB"}
+            return {"success"}
         except Exception as e:
             print(f"Failed to send data to DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
@@ -100,7 +100,7 @@ async def upsert_data(data):
         print(f"Error as {e}, check logs.")
         raise HTTPException(status_code=500, detail="DB Error!")
 
-@app.post("/api/v1/read_data/")
+@app.get("/api/v1/read_data/")
 async def read_data(data):
     try:
         data = await EventBus.read_data(data)
@@ -118,7 +118,7 @@ async def delete_data(data):
         print(f"Error as {e}, check logs.")
         raise HTTPException(status_code=500, detail="DB Error!")
 
-@app.post("/api/v1/random_data/")
+@app.get("/api/v1/random_data/")
 async def get_random_data():
     try:
         data = await EventBus.get_random_data()
