@@ -96,7 +96,7 @@ class DatabaseManager:
             password=db_password,
             port=db_port,
             min_size=5,
-            max_size=20  # Adjust these numbers based on your needs
+            max_size=10
         )
 
     async def close_pool(self):
@@ -184,3 +184,6 @@ class DB_Operations:
         except Exception as e:
             print(f"An error occurred: {e}")
             return None
+
+
+
