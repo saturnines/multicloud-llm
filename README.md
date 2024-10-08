@@ -1,8 +1,15 @@
-Hi this is a in progress distributed systems I'm working on.
+# Distributed Systems Project
+
+Hi! This is an in-progress distributed systems project I'm working on.
+
+## Future Plans
+
+- **AWS EC2 Deployment with Kubernetes (k8s)**: 
+- **Stack Tracking with Jaeger**: 
+- **Function Calling with an LLM Model**: 
+- **Logging with EFK + Grafana**: 
+- **Health Broadcasting with RabbitMQ**: 
+
+---
 
 
-Future plans
-
-// Aws Ec2 deployement with k8
-// Stacktracking with jaeger
-// Function calling with a LLM model
