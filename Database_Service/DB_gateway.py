@@ -4,6 +4,9 @@ from fastapi import FastAPI, HTTPException
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from kafka import KafkaConsumer, KafkaProducer
+import json
+import threading
 app = FastAPI()
 import os
 
@@ -11,11 +14,9 @@ load_dotenv('DataBase.env')
 from TopNCache import *
 
 """Secrets"""
-data_ip = os.getenv('INGESTION_IP')
-data_port = os.getenv('INGESTION_PORT')
+kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
+kafka_topic = os.getenv('KAFKA_TOPIC', 'api_query')  # Topic from data ingestion
 
-
-# I should have made a data serializer and deserializer ugh
 class Metrics(BaseModel):
     """Model for expected API result from Data Ingestion"""
     profitability: Optional[float] = None
@@ -33,100 +34,90 @@ class Metrics(BaseModel):
     current_price: Optional[float] = None
     instant_sell: Optional[float] = None
 
-
 class ItemResponse(BaseModel):
     signal: Optional[str] = None
     metrics: Metrics
 
+class APIGateway:
+    def __init__(self):
+        # Existing consumer setup
+        self.consumer = KafkaConsumer(
+            kafka_topic,
+            bootstrap_servers=kafka_bootstrap_servers,
+            group_id='gateway_group',
+            value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+        )
+        # Add producer for DB service
+        self.producer = KafkaProducer(
+            bootstrap_servers=kafka_bootstrap_servers,
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+        self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
+        self.consumer_thread.start()
 
-class ServiceClient:
-    def __init__(self, service_url: str):
-        self.service_url = service_url
+    def _consume_messages(self):
+        try:
+            print("Starting to consume messages from data ingestion...")
+            for message in self.consumer:
+                try:
+                    data = message.value
 
-    async def request(self, method: str, path: str, **kwargs) -> Optional[Dict[str, Any]]:
-        # This just queries an api and returns the result
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.request(method, f"{self.service_url}{path}", **kwargs)
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError:
-                return None
-            except httpx.RequestError:
-                # Should never happen
-                raise HTTPException(status_code=500, detail="Internal server error")
+                    if data and isinstance(data, dict):
+                        # Convert to HeapNode for cache
+                        node = HeapNode(
+                            signal=data.get('Signal'),
+                            profitability=data['metrics'].get('profitability'),
+                            volatility=data['metrics'].get('volatility'),
+                            liquidity=data['metrics'].get('liquidity'),
+                            price_stability=data['metrics'].get('price_stability'),
+                            relative_volume=data['metrics'].get('relative_volume'),
+                            possible_profit=data['metrics'].get('possible_profit'),
+                            current_price=data['metrics'].get('current_price'),
+                            search_query=data['metrics'].get('search_query')
+                        )
 
+                        top_n.cache.add(node)
 
-class DataIngestion(ServiceClient):
-    """Call this to get one item from the Data_ingestion_Service"""
-
-    async def query_item(self) -> Optional[Dict[str, Any]]:
-        return await self.request("GET", f"/get_item")
-
+                        self.producer.send('database_operations', value=data)
+                        print(f"Processed data: {data}")
+                except Exception as e:
+                    print(f"Error processing message: {e}")
+        except Exception as e:
+            print(f"Consumer error: {e}")
+        finally:
+            self.consumer.close()
 
 class CacheObject:
     def __init__(self):
         self.cache = TopNCache(20)
 
-    async def add_to_cache(self, node):
-        self.cache.add(node)
-        # add logging
-
     async def get_cache(self):
         return self.cache.get_cache()
-        # add logging
 
     async def get_avg_cache(self):
         return self.cache.get_cache_with_averages()
-        # add logging
 
 
-class APIGateway:
-    def __init__(self):
-        self.query_service = DataIngestion(data_ip + data_port)
-        self.db_service = DataIngestion(None)
+top_n = CacheObject()
+gateway = APIGateway()
 
-    async def _get_query(self):  # Test if this works tomorrow, then start the lru service.
-        """Gets from the Data Ingestion Service"""
-        try:
-            res = await self.query_service.query_item()
-            if res:
-                return res
-        except Exception as e:
-            return {"error": f"An error occurred: {str(e)}"}
-
-    async def send_to_dbs(self, node):
-        """Sends to DB Services, Add an event response for successful db additions."""
-        pass
-
-
-
-# Ideally Send to caching would also call an add_top_ncache too, Gotta think about interservice communication
-@app.get("api/v1/get_cache_avg")
+@app.get("/api/v1/get_cache_avg")
 async def get_top_n_cache():
     """Return Cache Average"""
     try:
-        await top_n.get_avg_cache()
+        return await top_n.get_avg_cache()
     except Exception as e:
-        print(f"Error as {e}")
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("api/v1/get_cache")
+@app.get("/api/v1/get_cache")
 async def get_top_n_cache():
     """Return Top-N Cache"""
     try:
-        await top_n.get_cache()
+        return await top_n.get_cache()
     except Exception as e:
-        print(f"Error as {e}")
-
-@app.post("api/v1/cache_add")
-async def get_top_n_cache(node):
-    """add to cache"""
-    try:
-        await top_n.add_to_cache(node)
-    except Exception as e:
-        print(f"Error as {e}")
-
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    top_n = CacheObject()
     uvicorn.run(app, host="0.0.0.0", port=8002)
