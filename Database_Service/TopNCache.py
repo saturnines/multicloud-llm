@@ -183,5 +183,9 @@ class TopNCache:
 
         return json.dumps(result)
 
+    def clear_cache(self):
+        """Clear Cache"""
+        self.HeapCache.clear()
+
 # TODO TEST
 # Data might be sorted by least to most need to fix
