@@ -40,14 +40,14 @@ class ItemResponse(BaseModel):
 
 class APIGateway:
     def __init__(self):
-        # Existing consumer setup
+
         self.consumer = KafkaConsumer(
             kafka_topic,
             bootstrap_servers=kafka_bootstrap_servers,
             group_id='gateway_group',
             value_deserializer=lambda x: json.loads(x.decode('utf-8'))
         )
-        # Add producer for DB service
+
         self.producer = KafkaProducer(
             bootstrap_servers=kafka_bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
