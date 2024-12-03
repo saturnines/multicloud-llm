@@ -109,13 +109,17 @@ class DatabaseConsumer:
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
 
-    def _consume_messages(self):
+    async def _consume_messages(self):
         try:
             print("Starting database consumer...")
             for message in self.consumer:
                 data = message.value
                 if data:
-                    await self.event_bus.upsert_create(data)
+                    signal_data = SignalDataModel(
+                        Signal=data['signal'],
+                        metrics=SignalData(**data['metrics'])
+                    )
+                    await self.event_bus.upsert_create(signal_data)
                     print(f"Stored data for: {data['metrics'].get('search_query')}")
         except Exception as e:
             print(f"Consumer error: {e}")
