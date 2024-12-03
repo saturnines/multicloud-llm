@@ -1,4 +1,4 @@
-import httpx
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from typing import List, Optional, Dict, Any
@@ -13,7 +13,7 @@ import os
 load_dotenv('DataBase.env')
 from TopNCache import *
 
-"""Secrets"""
+
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 kafka_topic = os.getenv('KAFKA_TOPIC', 'api_query')  # Topic from data ingestion
 
