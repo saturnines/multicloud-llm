@@ -1,3 +1,4 @@
+import asyncio
 from dotenv import load_dotenv
 load_dotenv('DataBase.env')
 from fastapi import FastAPI, HTTPException
@@ -11,7 +12,6 @@ from typing import Optional
 from SQLDataBase import *
 
 app = FastAPI()
-
 
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 
@@ -106,30 +106,32 @@ class DatabaseConsumer:
             value_deserializer=lambda x: json.loads(x.decode('utf-8'))
         )
         self.event_bus = DatabaseBusHelper()
+        self.loop = asyncio.new_event_loop()
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
 
-    async def _consume_messages(self):
+    def _consume_messages(self):
+        asyncio.set_event_loop(self.loop)
         try:
             print("Starting database consumer...")
             for message in self.consumer:
                 data = message.value
                 if data:
                     signal_data = SignalDataModel(
-                        Signal=data['signal'],
+                        Signal=data['Signal'],
                         metrics=SignalData(**data['metrics'])
                     )
-                    await self.event_bus.upsert_create(signal_data)
+                    self.loop.run_until_complete(
+                        self.event_bus.upsert_create(signal_data)
+                    )
                     print(f"Stored data for: {data['metrics'].get('search_query')}")
         except Exception as e:
             print(f"Consumer error: {e}")
         finally:
             self.consumer.close()
 
-
 EventBus = DatabaseBusHelper()
 db_consumer = DatabaseConsumer()
-
 
 @app.get("/api/v1/read_data/")
 async def read_data(data: str):
