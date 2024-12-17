@@ -1,17 +1,20 @@
-import httpx
-import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from pydantic import BaseModel, ValidationError
-from typing import Optional, Dict, Any
+import json
+import os
 import asyncio
+import time
+import httpx
+from kafka import KafkaProducer
+from pydantic import BaseModel, ValidationError
+from typing import Optional
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
-from Data_Ingestion_Service.testing import main
-# Initialize FastAPI app
-app = FastAPI()
+
+
+kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
+api_query_topic = 'api_query'
+database_operations_topic = 'database_operations'
 
 
 class Metrics(BaseModel):
-    """Model for expected API result"""
     profitability: Optional[float] = None
     volatility: Optional[float] = None
     liquidity: Optional[float] = None
@@ -29,95 +32,128 @@ class Metrics(BaseModel):
     search_Query: Optional[str] = None
 
 
-# main response model
 class ItemResponse(BaseModel):
     signal: Optional[str] = None
     metrics: Metrics
 
 
-api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=55, hard_limit=90, rate_limit=100)
-async def api_helper():
-    item = await api_breaker.process_from_queue()
-    if not item:
-        api_breaker.enqueue_tasks()
-        await asyncio.sleep(5)
-    if item:
-        return item
+class KafkaEventProcessor:
+    def __init__(self):
+        self.producer = KafkaProducer(
+            bootstrap_servers=kafka_bootstrap_servers,
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
 
-negative_cache = set([])
+        self.api_breaker = ApiCircuitBreakers(
+            api_count=0,
+            soft_limit=55,
+            hard_limit=90,
+            rate_limit=100
+        )
 
+        self.negative_cache = set([])
+        self.retry_counts = {}
+        self.last_retry_time = {}
 
-@app.get("/get_item", response_model=ItemResponse)
-async def get_item():
-    """Internal endpoint to get an item with a 5-second delay"""
+    def reset_retries(self, search_term):
+        """Reset retry count and time for a search term"""
+        if search_term in self.retry_counts:
+            del self.retry_counts[search_term]
+        if search_term in self.last_retry_time:
+            del self.last_retry_time[search_term]
 
-    try:
-        # get search term
-        res = await api_helper()
-        if res is None:
-            return {"error": "No search term provided, query."}
+    async def process_item(self, search_term, max_retries=3, base_delay=1):
+        retries = self.retry_counts.get(search_term, 0)
 
-        # If res is in negative cache, call api_helper to get a fresh response
-        if res in negative_cache:
-            res = await api_helper()
-
-        # 4 second delay for slower api
-        await asyncio.sleep(4)
-
-        url = f"https://api.kevinsapi.net/items/?search_term={res}"
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-
-            if response.status_code == 200:
-                data = response.json()
-
-                # get both signal and metrics
-                signal = data.get("Signal")
-                metrics_data = data.get("metrics", {})
-
-                # validate  response
-                try:
-                    return ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
-
-                except ValidationError:
-                    # If the response does not fit the model, add to negative cache
-                    negative_cache.add(res)
-                    return {"error": "Data does not match expected format"}
-
-            elif response.status_code == 404:
-                return {"error": "Item not found"}
-
-            elif response.status_code in {500, 503}:
-                return {"error": "Server error, please try again later"}
-
-        # If there's no response
-        negative_cache.add(res)
-        return {"error": "No response or invalid response"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-class DataTestResponse(BaseModel):
-    Result: str
-    ErrorMessage: Optional[str] = None
+        try:
+            if search_term in self.negative_cache:
+                self.reset_retries(search_term)
+                return None
 
 
-@app.get("/data_test", response_model=DataTestResponse)
-async def run_data_tests():
-    try:
-        test_result = await main()
-        if test_result == True:
-            return DataTestResponse(Result="True")
-        else:
-            return DataTestResponse(Result="False")
-    except Exception as e:
-        return DataTestResponse(Result="False", ErrorMessage=str(e))
+            if retries > 0:
+                delay = base_delay * (2 ** (retries - 1))
+                print(f"Retry {retries} for {search_term}, waiting {delay} seconds")
+                await asyncio.sleep(delay)
+
+            # Regular rate limit delay
+            await asyncio.sleep(4)
+
+            url = f"https://api.kevinsapi.net/items/?search_term={search_term}"
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    signal = data.get("Signal")
+                    metrics_data = data.get("metrics", {})
+                    metrics_data['search_Query'] = search_term
+
+                    try:
+                        item = ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
+                        self.producer.send(api_query_topic, value=item.dict())
+                        self.producer.flush()
+                        print(f"Processed and sent data for search term: {search_term}")
+                        self.reset_retries(search_term)  # Reset on success
+                        return True
+
+                    except ValidationError as e:
+                        print(f"Validation error for {search_term}: {e}")
+                        self.negative_cache.add(search_term)
+                        self.reset_retries(search_term)
+                        return None
+
+                elif response.status_code == 404:
+                    print(f"Not found error for {search_term}")
+                    self.negative_cache.add(search_term)
+                    self.reset_retries(search_term)
+                    return None
+
+                elif response.status_code in {500, 503}:
+                    print(f"Server error {response.status_code} for {search_term}, attempt {retries + 1}/{max_retries}")
+                    if retries < max_retries:
+                        self.retry_counts[search_term] = retries + 1
+                        self.last_retry_time[search_term] = time.time()
+                        return await self.process_item(search_term, max_retries, base_delay)
+                    else:
+                        print(f"Max retries reached for {search_term}")
+                        self.reset_retries(search_term)
+                        return None
+
+            return None
+
+        except Exception as e:
+            print(f"Error processing item: {e}, attempt {retries + 1}/{max_retries}")
+            if retries < max_retries:
+                self.retry_counts[search_term] = retries + 1
+                self.last_retry_time[search_term] = time.time()
+                return await self.process_item(search_term, max_retries, base_delay)
+            else:
+                print(f"Max retries reached for {search_term}")
+                self.reset_retries(search_term)
+                return None
+
+
+
+    async def run(self):
+        print("Starting to process items...")
+        try:
+            while True:
+                search_term = await self.api_breaker.process_from_queue()
+                if not search_term:
+                    self.api_breaker.enqueue_tasks()
+                    await asyncio.sleep(5)
+                    continue
+
+                await self.process_item(search_term)
+
+        except Exception as e:
+            print(f"Error in event processor: {e}")
+        finally:
+            self.producer.close()
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-
-# Theresa  bug where the first api call is always None (lol)
-# Add Logging
-# Make it OOP
+    processor = KafkaEventProcessor()
+    asyncio.run(processor.run())
