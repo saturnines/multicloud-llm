@@ -33,7 +33,7 @@ class Metrics(BaseModel):
     instant_sell: Optional[float]
     search_Query: Optional[str] = None
 class SignalData(BaseModel):
-    Signal: str
+    signal: str
     metrics: Metrics
 
 class DataBaseCreator:
