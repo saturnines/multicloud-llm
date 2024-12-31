@@ -17,22 +17,21 @@ db_password = os.getenv("PASSWORD")
 db_port = os.getenv("DB_PORT")
 
 class Metrics(BaseModel):
-    profitability: Decimal
-    volatility: Decimal
-    liquidity: Decimal
-    price_momentum: Decimal
-    relative_volume: Decimal
-    spread: Decimal
-    price_stability: Decimal
-    historical_buy_comparison: Decimal
-    historical_sell_comparison: Decimal
-    medium_sell: Decimal
-    medium_buy: Decimal
-    possible_profit: Decimal
-    current_price: Decimal
-    instant_sell: Decimal
-    search_query: Optional[str] = None
-
+    profitability: Optional[float]
+    volatility: Optional[float]
+    liquidity: Optional[float]
+    price_momentum: Optional[float]
+    relative_volume: Optional[float]
+    spread: Optional[float]
+    price_stability: Optional[float]
+    historical_buy_comparison: Optional[float]
+    historical_sell_comparison: Optional[float]
+    medium_sell: Optional[float]
+    medium_buy: Optional[float]
+    possible_profit: Optional[float]
+    current_price: Optional[float]
+    instant_sell: Optional[float]
+    search_Query: Optional[str] = None
 class SignalData(BaseModel):
     Signal: str
     metrics: Metrics
