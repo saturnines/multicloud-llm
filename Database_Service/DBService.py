@@ -2,13 +2,10 @@ import asyncio
 from dotenv import load_dotenv
 load_dotenv('DataBase.env')
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 from kafka import KafkaConsumer
 import threading
 import json
 import uvicorn
-import os
-from typing import Optional
 from SQLDataBase import *
 
 app = FastAPI()
@@ -115,16 +112,23 @@ class DatabaseConsumer:
         try:
             print("Starting database consumer...")
             for message in self.consumer:
-                data = message.value
-                if data:
-                    signal_data = SignalDataModel(
-                        Signal=data['Signal'],
-                        metrics=SignalData(**data['metrics'])
-                    )
-                    self.loop.run_until_complete(
-                        self.event_bus.upsert_create(signal_data)
-                    )
-                    print(f"Stored data for: {data['metrics'].get('search_query')}")
+                try:
+                    data = message.value
+                    print(f"Received database message: {data}")  # Debug logging
+
+                    if data and isinstance(data, dict):
+                        signal_data = SignalDataModel(
+                            Signal=data.get('signal') or data.get('Signal'),  # Handle both cases
+                            metrics=SignalData(**data['metrics'])
+                        )
+                        self.loop.run_until_complete(
+                            self.event_bus.upsert_create(signal_data)
+                        )
+                        print(
+                            f"Stored data for: {data['metrics'].get('search_Query') or data['metrics'].get('search_query')}")
+                except Exception as e:
+                    print(f"Error processing message: {e}")
+                    continue
         except Exception as e:
             print(f"Consumer error: {e}")
         finally:

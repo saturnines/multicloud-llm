@@ -61,25 +61,28 @@ class APIGateway:
             for message in self.consumer:
                 try:
                     data = message.value
+                    print(f"Received raw message: {data}")
 
-                    if data and isinstance(data, dict):
-                        # Convert to HeapNode for cache
-                        node = HeapNode(
-                            signal=data.get('signal') or data.get('Signal'),
-                            profitability=data['metrics'].get('profitability'),
-                            volatility=data['metrics'].get('volatility'),
-                            liquidity=data['metrics'].get('liquidity'),
-                            price_stability=data['metrics'].get('price_stability'),
-                            relative_volume=data['metrics'].get('relative_volume'),
-                            possible_profit=data['metrics'].get('possible_profit'),
-                            current_price=data['metrics'].get('current_price'),
-                            search_query=data['metrics'].get('search_query')
-                        )
+                    # skip messages that don't have sig and metrics
+                    if not (data and isinstance(data, dict) and 'signal' in data and 'metrics' in data):
+                        continue
 
-                        top_n.cache.add(node)
 
-                        self.producer.send('database_operations', value=data)
-                        print(f"Processed data: {data}")
+                    node = HeapNode(
+                        signal=data.get('signal'),
+                        profitability=data['metrics'].get('profitability'),
+                        volatility=data['metrics'].get('volatility'),
+                        liquidity=data['metrics'].get('liquidity'),
+                        price_stability=data['metrics'].get('price_stability'),
+                        relative_volume=data['metrics'].get('relative_volume'),
+                        possible_profit=data['metrics'].get('possible_profit'),
+                        current_price=data['metrics'].get('current_price'),
+                        search_query=data['metrics'].get('search_Query')
+                    )
+
+                    top_n.cache.add(node)
+                    self.producer.send('database_operations', value=data)
+                    print(f"Processed data: {data}")
                 except Exception as e:
                     print(f"Error processing message: {e}")
         except Exception as e:
