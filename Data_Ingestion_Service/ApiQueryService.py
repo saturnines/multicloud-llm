@@ -8,7 +8,6 @@ from pydantic import BaseModel, ValidationError
 from typing import Optional
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
 
-
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 api_query_topic = 'api_query'
 database_operations_topic = 'database_operations'
@@ -69,7 +68,6 @@ class KafkaEventProcessor:
             if search_term in self.negative_cache:
                 self.reset_retries(search_term)
                 return None
-
 
             if retries > 0:
                 delay = base_delay * (2 ** (retries - 1))
@@ -133,8 +131,6 @@ class KafkaEventProcessor:
                 print(f"Max retries reached for {search_term}")
                 self.reset_retries(search_term)
                 return None
-
-
 
     async def run(self):
         print("Starting to process items...")
