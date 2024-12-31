@@ -27,6 +27,7 @@ class SignalData(BaseModel):
     possible_profit: Optional[float] = None
     current_price: Optional[float] = None
     instant_sell: Optional[float] = None
+    search_query: Optional[str] = None
 
 class SignalDataModel(BaseModel):
     Signal: str
