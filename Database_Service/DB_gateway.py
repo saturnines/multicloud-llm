@@ -65,7 +65,7 @@ class APIGateway:
                     if data and isinstance(data, dict):
                         # Convert to HeapNode for cache
                         node = HeapNode(
-                            signal=data.get('Signal'),
+                            signal=data.get('signal') or data.get('Signal'),
                             profitability=data['metrics'].get('profitability'),
                             volatility=data['metrics'].get('volatility'),
                             liquidity=data['metrics'].get('liquidity'),
