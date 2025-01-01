@@ -7,6 +7,10 @@ from kafka import KafkaProducer
 from pydantic import BaseModel, ValidationError
 from typing import Optional
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
+from Data_Ingestion_Service.DataIngestionLogConfig import configure_logging
+
+
+logger = configure_logging('Data_Ingestion_Service')
 
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 api_query_topic = 'api_query'
@@ -38,10 +42,12 @@ class ItemResponse(BaseModel):
 
 class KafkaEventProcessor:
     def __init__(self):
+        logger.info("Initializing KafkaEventProcessor")
         self.producer = KafkaProducer(
             bootstrap_servers=kafka_bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
+        logger.info("Successfully initialized Kafka producer")
 
         self.api_breaker = ApiCircuitBreakers(
             api_count=0,
@@ -49,6 +55,7 @@ class KafkaEventProcessor:
             hard_limit=90,
             rate_limit=100
         )
+        logger.info("Circuit breaker initialized with limits: soft=55, hard=90, rate=100")
 
         self.negative_cache = set([])
         self.retry_counts = {}
@@ -60,29 +67,33 @@ class KafkaEventProcessor:
             del self.retry_counts[search_term]
         if search_term in self.last_retry_time:
             del self.last_retry_time[search_term]
+        logger.debug(f"Reset retries for search term: {search_term}")
 
     async def process_item(self, search_term, max_retries=3, base_delay=1):
         retries = self.retry_counts.get(search_term, 0)
 
         try:
             if search_term in self.negative_cache:
+                logger.info(f"Skipping cached negative result for: {search_term}")
                 self.reset_retries(search_term)
                 return None
 
             if retries > 0:
                 delay = base_delay * (2 ** (retries - 1))
-                print(f"Retry {retries} for {search_term}, waiting {delay} seconds")
+                logger.info(f"Retry attempt {retries}/{max_retries} for {search_term}, delay: {delay}s")
                 await asyncio.sleep(delay)
 
-            # Regular rate limit delay
+            # rate limit
             await asyncio.sleep(4)
 
+            logger.info(f"Making API request for: {search_term}")
             url = f"https://api.kevinsapi.net/items/?search_term={search_term}"
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)
 
                 if response.status_code == 200:
+                    logger.info(f"Successful API response for: {search_term}")
                     data = response.json()
                     signal = data.get("Signal")
                     metrics_data = data.get("metrics", {})
@@ -92,52 +103,53 @@ class KafkaEventProcessor:
                         item = ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
                         self.producer.send(api_query_topic, value=item.dict())
                         self.producer.flush()
-                        print(f"Processed and sent data for search term: {search_term}")
-                        self.reset_retries(search_term)  # Reset on success
+                        logger.info(f"Successfully processed and sent data to Kafka for: {search_term}")
+                        self.reset_retries(search_term)
                         return True
 
                     except ValidationError as e:
-                        print(f"Validation error for {search_term}: {e}")
+                        logger.error(f"Validation error for {search_term}: {str(e)}")
                         self.negative_cache.add(search_term)
                         self.reset_retries(search_term)
                         return None
 
                 elif response.status_code == 404:
-                    print(f"Not found error for {search_term}")
+                    logger.warning(f"Not found error for {search_term}, adding to negative cache")
                     self.negative_cache.add(search_term)
                     self.reset_retries(search_term)
                     return None
 
                 elif response.status_code in {500, 503}:
-                    print(f"Server error {response.status_code} for {search_term}, attempt {retries + 1}/{max_retries}")
+                    logger.error(f"Server error {response.status_code} for {search_term}, attempt {retries + 1}/{max_retries}")
                     if retries < max_retries:
                         self.retry_counts[search_term] = retries + 1
                         self.last_retry_time[search_term] = time.time()
                         return await self.process_item(search_term, max_retries, base_delay)
                     else:
-                        print(f"Max retries reached for {search_term}")
+                        logger.error(f"Max retries reached for {search_term}")
                         self.reset_retries(search_term)
                         return None
 
             return None
 
         except Exception as e:
-            print(f"Error processing item: {e}, attempt {retries + 1}/{max_retries}")
+            logger.error(f"Unexpected error processing {search_term}: {str(e)}, attempt {retries + 1}/{max_retries}")
             if retries < max_retries:
                 self.retry_counts[search_term] = retries + 1
                 self.last_retry_time[search_term] = time.time()
                 return await self.process_item(search_term, max_retries, base_delay)
             else:
-                print(f"Max retries reached for {search_term}")
+                logger.error(f"Max retries reached after unexpected error for {search_term}")
                 self.reset_retries(search_term)
                 return None
 
     async def run(self):
-        print("Starting to process items...")
+        logger.info("Starting KafkaEventProcessor service...")
         try:
             while True:
                 search_term = await self.api_breaker.process_from_queue()
                 if not search_term:
+                    logger.debug("No search term available, enqueueing tasks")
                     self.api_breaker.enqueue_tasks()
                     await asyncio.sleep(5)
                     continue
@@ -145,11 +157,13 @@ class KafkaEventProcessor:
                 await self.process_item(search_term)
 
         except Exception as e:
-            print(f"Error in event processor: {e}")
+            logger.error(f"Fatal error in event processor: {str(e)}")
         finally:
+            logger.info("Shutting down KafkaEventProcessor")
             self.producer.close()
 
 
 if __name__ == "__main__":
+    logger.info("Initializing Data Ingestion Service")
     processor = KafkaEventProcessor()
     asyncio.run(processor.run())
