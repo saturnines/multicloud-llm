@@ -6,7 +6,6 @@ def configure_logging(service_name: str, fluentd_host: str = 'localhost', fluent
     logger = logging.getLogger(service_name)
     logger.setLevel(logging.INFO)
 
-
     if not logger.handlers:
         fluent_sender = sender.FluentSender(service_name, host=fluentd_host, port=fluentd_port)
 
