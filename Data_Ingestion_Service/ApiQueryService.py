@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 from typing import Optional
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
 from Data_Ingestion_Service.DataIngestionLogConfig import configure_logging
-
+import random
 
 logger = configure_logging('Data_Ingestion_Service')
 
@@ -82,6 +82,10 @@ class KafkaEventProcessor:
                 delay = base_delay * (2 ** (retries - 1))
                 logger.info(f"Retry attempt {retries}/{max_retries} for {search_term}, delay: {delay}s")
                 await asyncio.sleep(delay)
+
+            if random.random() < 0.01:
+                current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+                logger.info(f"[{current_time}] Sample negative cache size: {len(self.negative_cache)}")
 
             # rate limit
             await asyncio.sleep(4)
