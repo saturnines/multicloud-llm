@@ -10,6 +10,8 @@ import threading
 app = FastAPI()
 import os
 
+from DatabaseLogConfig import configure_logging
+logger = configure_logging('DB_Gateway')
 load_dotenv('DataBase.env')
 from TopNCache import *
 
@@ -40,6 +42,10 @@ class ItemResponse(BaseModel):
 
 class APIGateway:
     def __init__(self):
+        logger.info("Initializing API Gateway", extra={
+            'kafka_topic': kafka_topic,
+            'bootstrap_servers': kafka_bootstrap_servers
+        })
 
         self.consumer = KafkaConsumer(
             kafka_topic,
@@ -57,14 +63,17 @@ class APIGateway:
 
     def _consume_messages(self):
         try:
-            print("Starting to consume messages from data ingestion...")
+            logger.info("Starting to consume messages from data ingestion...")
             for message in self.consumer:
                 try:
                     data = message.value
-                    print(f"Received raw message: {data}")
+                    logger.info(f"Received raw message: {data}")
 
                     # skip messages that don't have sig and metrics
                     if not (data and isinstance(data, dict) and 'signal' in data and 'metrics' in data):
+                        logger.warning("Invalid message format", extra={
+                            'received_data': data
+                        })
                         continue
 
 
@@ -82,11 +91,11 @@ class APIGateway:
 
                     top_n.cache.add(node)
                     self.producer.send('database_operations', value=data)
-                    print(f"Processed data: {data}")
+                    logger.info(f"Processed data: {data}")
                 except Exception as e:
-                    print(f"Error processing message: {e}")
+                    logger.error(f"Error processing message: {e}")
         except Exception as e:
-            print(f"Consumer error: {e}")
+            logger.error(f"Consumer error: {e}")
         finally:
             self.consumer.close()
 
@@ -104,22 +113,24 @@ class CacheObject:
 top_n = CacheObject()
 gateway = APIGateway()
 
-@app.get("/api/v1/get_cache_avg")
-async def get_top_n_cache():
-    """Return Cache Average"""
-    try:
-        return await top_n.get_avg_cache()
-    except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/v1/get_cache")
 async def get_top_n_cache():
     """Return Top-N Cache"""
     try:
         return await top_n.get_cache()
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Cache retrieval error", extra={
+            'error': str(e),
+            'error_type': type(e).__name__
+        })
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/v1/get_cache")
+async def get_top_n_cache():
+    """Return Top-N Cache"""
+    try:
+        return await top_n.get_cache()
+    except Exception as e:
+        logger.info(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
