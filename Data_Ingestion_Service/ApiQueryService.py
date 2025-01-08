@@ -42,12 +42,12 @@ class ItemResponse(BaseModel):
 
 class KafkaEventProcessor:
     def __init__(self):
-        logger.info("Initializing KafkaEventProcessor")
+        logger.info("Initializing Kafka")
         self.producer = KafkaProducer(
             bootstrap_servers=kafka_bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
-        logger.info("Successfully initialized Kafka producer")
+        logger.info("Successfully started Kafka producer")
 
         self.api_breaker = ApiCircuitBreakers(
             api_count=0,
@@ -55,7 +55,7 @@ class KafkaEventProcessor:
             hard_limit=90,
             rate_limit=100
         )
-        logger.info("Circuit breaker initialized with limits: soft=55, hard=90, rate=100")
+        logger.info("Circuit breaker initialized")
 
         self.negative_cache = set([])
         self.retry_counts = {}
