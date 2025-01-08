@@ -13,8 +13,11 @@ import os
 from dotenv import load_dotenv
 
 import os
-load_dotenv('DataEnv.env')
 
+load_dotenv('DataEnv.env')
+from Data_Ingestion_Service.DataIngestionLogConfig import configure_logging
+
+logger = configure_logging('Circuit_Breaker')
 
 
 class ApiCircuitBreakers:
@@ -30,13 +33,12 @@ class ApiCircuitBreakers:
 
         kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 
-        # Kafka Producer
         self._Producer = KafkaProducer(
             bootstrap_servers=kafka_bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
 
-        # Kafka Consumer in a separate thread
+        # kafka consumer in separate thread ( this is prolly not threadsafe but I don't know enough about threading lol)
         self._consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self._consumer_thread.start()
 
@@ -51,19 +53,31 @@ class ApiCircuitBreakers:
             enable_auto_commit=True
         )
         try:
-            print("Consuming messages from Kafka broker...")
+            logger.info("Starting Kafka message consumption")
             for message in consumer:
-                print(f"Message from partition {message.partition}, offset {message.offset}: {message.value}")
+                logger.info("Message received from Kafka", extra={
+                    'partition': message.partition,
+                    'offset': message.offset,
+                    'value': message.value
+                })
                 api_query = message.value.get('API_Query')
                 if api_query:
-                    self._queue.append(api_query)  # Add only the API_Query to the processing queue
-                    print(f"Enqueued: {api_query}")
+                    self._queue.append(api_query)
+                    logger.info("Query enqueued", extra={
+                        'query': api_query,
+                        'queue_size': len(self._queue)
+                    })
                 else:
-                    print("No API_Query field found in the message.")
+                    logger.warning("No API_Query field in message", extra={
+                        'message_value': message.value
+                    })
         except KafkaError as e:
-            print(f"Caught KafkaError in consumer: {e}")
+            logger.error("Kafka consumer error", extra={
+                'error': str(e)
+            })
         finally:
             consumer.close()
+            logger.info("Kafka consumer closed")
 
     def enqueue_tasks(self):
         """Send API queries to Kafka."""
@@ -72,9 +86,9 @@ class ApiCircuitBreakers:
                 message = {"API_Query": key, 'message': f'This is the query for {value}'}
                 future = self._Producer.send("api_query", value=message)
                 future.get(timeout=10)  # Wait for the message to be sent
-                print(f"Sent to Kafka: {message}")
+                logger.info(f"Sent to Kafka: {message}")
         except KafkaError as e:
-            print(f"Caught a KafkaException: {e}")
+            logger.error(f"Caught a KafkaException: {e}")
         finally:
             self._Producer.flush()
 
@@ -101,10 +115,10 @@ class ApiCircuitBreakers:
         """Process tasks from the queue and return the API_Query."""
         if self._queue:
             api_query = self._queue.popleft()
-            print(f"Processing: {api_query}")
+            logger.info(f"Processing: {api_query}")
             return api_query
         else:
-            print("Queue is empty, attempting to enqueue tasks")
+            logger.info("Queue is empty, attempting to enqueue tasks")
             await asyncio.to_thread(self.enqueue_tasks)
             return None
 
@@ -142,7 +156,10 @@ class ApiCircuitBreakers:
                 elif status == "OPEN":
                     return await self.handle_open()
             except Exception as e:
-                print(f"Circuit Breaker caught an exception: {e}")
+                logger.error("Circuit Breaker exception", extra={
+                    'error': str(e),
+                    'status': status
+                })
                 return {"error": "Internal server error", "status": status}
 
         return wrapped_func
