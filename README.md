@@ -2,14 +2,13 @@
 
 Hi! This is an in-progress distributed systems project I'm working on.
 
-this is a parody on enterprise architecture.
-
-## Future Plans
+this is a just a sandbox to play around which technologies.~~
+~~
+## Future Plans (maybe)
 
 - **AWS EC2 Deployment with Kubernetes (k8s)**: 
 - **Stack Tracking with Jaeger**: 
-- **Function Calling with an LLM Model**: 
-- **Logging with EFK + Grafana**: 
+- **Function Calling with an LLM Model**:
 - **Health Broadcasting with RabbitMQ**: 
 
 ---
