@@ -11,6 +11,8 @@ from SQLDataBase import *
 app = FastAPI()
 
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
+from DatabaseLogConfig import configure_logging
+logger = configure_logging('DB_Gateway')
 
 class SignalData(BaseModel):
     profitability: Optional[float] = None
@@ -66,33 +68,50 @@ class DatabaseBusHelper:
     async def upsert_create(self, data_model):
         try:
             await self.DataBaseCRUD.upsert_signal_data(data_model)
+            logger.info("Successfully upserted data", extra={
+                'signal': data_model.Signal,
+                'search_query': data_model.metrics.search_query
+            })
             return {"success"}
         except Exception as e:
-            print(f"Failed to send data to DB: {e}")
+            logger.error("Failed to upsert data to DB", extra={
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'signal': data_model.Signal
+            })
             raise HTTPException(status_code=500, detail="DB Error!")
 
     async def read_data(self, data_model):
         try:
             read_data = await self.DataBaseCRUD.read_signal_data(data_model)
+            logger.info("Successfully read data", extra={
+                'search_query': data_model
+            })
             return read_data
         except Exception as e:
-            print(f"Failed to get data from DB: {e}")
+            logger.error(f"Failed to get read data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
     async def delete_data(self, data_model):
         try:
             await self.DataBaseCRUD.delete_signal_data(data_model)
+            logger.info("Successfully deleted data", extra={
+                'search_query': data_model
+            })
             return {"message": "Data Deleted!!"}
         except Exception as e:
-            print(f"Failed to get data from DB: {e}")
+            logger.error(f"Failed to delete data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
     async def get_random_data(self):
         try:
             data = await self.DataBaseCRUD.get_random_five()
+            logger.info("Successfully retrieved random data", extra={ # Not sure this will work, if something bug checks if this bugged.
+                'data_count': len(data) if data else 0
+            })
             return data
         except Exception as e:
-            print(f"Failed to get data from DB: {e}")
+            print(f"Failed to get random data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
 class DatabaseConsumer:
@@ -111,11 +130,11 @@ class DatabaseConsumer:
     def _consume_messages(self):
         asyncio.set_event_loop(self.loop)
         try:
-            print("Starting database consumer...")
+            logger.info("Starting database consumer...")
             for message in self.consumer:
                 try:
                     data = message.value
-                    print(f"Received database message: {data}")  # Debug logging
+                    logger.debug(f"Received database message: {data}")  # Debug logging
 
                     if data and isinstance(data, dict):
                         signal_data = SignalDataModel(
@@ -125,13 +144,13 @@ class DatabaseConsumer:
                         self.loop.run_until_complete(
                             self.event_bus.upsert_create(signal_data)
                         )
-                        print(
+                        logger.info(
                             f"Stored data for: {data['metrics'].get('search_Query') or data['metrics'].get('search_query')}")
                 except Exception as e:
-                    print(f"Error processing message: {e}")
+                    logger.error(f"Error processing message: {e}")
                     continue
         except Exception as e:
-            print(f"Consumer error: {e}")
+            logger.error(f"Consumer error: {e}")
         finally:
             self.consumer.close()
 
@@ -144,7 +163,7 @@ async def read_data(data: str):
         data = await EventBus.read_data(data)
         return data
     except Exception as e:
-        print(f"Error as {e}, check logs.")
+        logger.error(f"Error as {e}, failed to read data.")
         raise HTTPException(status_code=500, detail="DB Error!")
 
 @app.post("/api/v1/delete_data/")
@@ -152,7 +171,7 @@ async def delete_data(data: str):
     try:
         return await EventBus.delete_data(data)
     except Exception as e:
-        print(f"Error as {e}, check logs.")
+        logger.error(f"Error as {e}, failed to delete data.")
         raise HTTPException(status_code=500, detail="DB Error!")
 
 @app.get("/api/v1/random_data/")
@@ -161,7 +180,7 @@ async def get_random_data():
         data = await EventBus.get_random_data()
         return data
     except Exception as e:
-        print(f"Error as {e}, check logs.")
+        logger.error(f"Error as {e}, failed to get random data from API endpoint")
         raise HTTPException(status_code=500, detail="DB Error!")
 
 if __name__ == "__main__":
