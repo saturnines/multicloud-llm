@@ -124,14 +124,6 @@ async def get_top_n_cache():
             'error_type': type(e).__name__
         })
         raise HTTPException(status_code=500, detail=str(e))
-@app.get("/api/v1/get_cache")
-async def get_top_n_cache():
-    """Return Top-N Cache"""
-    try:
-        return await top_n.get_cache()
-    except Exception as e:
-        logger.info(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8002)
