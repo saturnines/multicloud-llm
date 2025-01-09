@@ -9,6 +9,10 @@ from contextlib import asynccontextmanager
 
 load_dotenv('DataBase.env')
 
+from DatabaseLogConfig import configure_logging
+logger = configure_logging('SQL_Operations')
+
+
 # Variables
 db_host = os.getenv('HOST')
 db_name = os.getenv('DBNAME')
@@ -145,17 +149,37 @@ class DB_Operations:
             async with pool.acquire() as conn:
                 await conn.execute(delete_query, signal_data.metrics.search_query)
                 await conn.execute(insert_query, *values)
-            print("Data upserted successfully")
+            logger.info("Data upserted successfully", extra={
+                'search_query': signal_data.metrics.search_query,
+                'signal': signal_data.Signal,
+                'operation': 'upsert'
+            })
         except Exception as e:
-            print(f"An error occurred during upsert: {e}")
+            logger.error("Database upsert error", extra={
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'search_query': signal_data.metrics.search_query,
+                'operation': 'upsert'
+            })
 
     async def read_signal_data(self, search_query: str):
         query = "SELECT * FROM data_metrics WHERE search_query = $1"
         try:
             async with self.db_manager.get_pool() as conn:
-                return await conn.fetch(query, search_query)
+                result = await conn.fetch(query, search_query)
+                logger.info("Data read successfully", extra={
+                    'search_query': search_query,
+                    'found_records': len(result) if result else 0,
+                    'operation': 'read'
+                })
+                return result
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error("Database read error", extra={
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'search_query': search_query,
+                'operation': 'read'
+            })
             return None
 
     async def delete_signal_data(self, search_query: str):
@@ -163,9 +187,17 @@ class DB_Operations:
         try:
             async with self.db_manager.get_pool() as conn:
                 await conn.execute(query, search_query)
-            print("Data deleted successfully")
+            logger.info("Data deleted successfully", extra={
+                'search_query': search_query,
+                'operation': 'delete'
+            })
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error("Database delete error", extra={
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'search_query': search_query,
+                'operation': 'delete'
+            })
 
     async def get_random_five(self):
         """Get 5 sql objects, that are profitable"""
@@ -178,10 +210,21 @@ class DB_Operations:
         """
         try:
             async with self.db_manager.get_pool() as conn:
-                return await conn.fetch(query)
+                result = await conn.fetch(query)  # This might not work and might break get random five if it does just default back
+                logger.info("Retrieved random records", extra={
+                    'records_found': len(result) if result else 0,
+                    'operation': 'random_select'
+                })
+                return result
+                # return this instead if it bugs: return await conn.fetch(query)
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error("Database random select error", extra={
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'operation': 'random_select'
+            })
             return None
+
 
 
 
