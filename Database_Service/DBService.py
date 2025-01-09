@@ -111,7 +111,7 @@ class DatabaseBusHelper:
             })
             return data
         except Exception as e:
-            print(f"Failed to get random data from DB: {e}")
+            logger.error(f"Failed to get random data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
 class DatabaseConsumer:
@@ -126,6 +126,8 @@ class DatabaseConsumer:
         self.loop = asyncio.new_event_loop()
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
+
+
 
     def _consume_messages(self):
         asyncio.set_event_loop(self.loop)
