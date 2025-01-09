@@ -81,10 +81,8 @@ class DatabaseManager:
         self.lock = Lock()
 
     async def get_pool(self):
-        if self.pool is None or self.pool.is_closed():
-            async with self.lock:
-                if self.pool is None or self.pool.is_closed():
-                    self.pool = await self.create_pool()
+        if self.pool is None:
+            self.pool = await self.create_pool()
         return self.pool
 
     async def create_pool(self):
@@ -143,7 +141,8 @@ class DB_Operations:
         )
 
         try:
-            async with self.db_manager.get_pool() as conn:
+            pool = await self.db_manager.get_pool()
+            async with pool.acquire() as conn:
                 await conn.execute(delete_query, signal_data.metrics.search_query)
                 await conn.execute(insert_query, *values)
             print("Data upserted successfully")
