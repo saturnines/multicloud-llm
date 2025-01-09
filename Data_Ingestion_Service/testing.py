@@ -30,21 +30,19 @@ async def query_api(search_term):
 
 async def main():
     try:
-        # enqueue tasks
         api_breaker = ApiCircuitBreakers(api_count=0, soft_limit=10, hard_limit=20, rate_limit=5)
         api_breaker.enqueue_tasks()
 
         await asyncio.sleep(5)
         await process_all_messages(api_breaker)
 
-        # Popping queries from the queue
+
         x = api_breaker._queue.popleft()
         y = api_breaker._queue.popleft()
         z = api_breaker._queue.popleft()
 
         print(f"Processing queries: {x}, {y}, {z}")
 
-        # Query API
         await query_api(x)
         await query_api(y)
         await query_api(z)
