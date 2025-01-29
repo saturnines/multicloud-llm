@@ -40,7 +40,7 @@ def fuzzy_match(query: list):
     l = 0
     best_score = 0
 
-    for r in range(len(query)):
+    for r in range(len(query)): # If anything finds this I know you don't need a sliding window but this is hilarious.
         curr = query[l:r + 1]
         curr_str = " ".join(curr)
 
