@@ -1,15 +1,27 @@
 from thefuzz import fuzz, process
 from LLM_Service.DataParse import query_data
-from fastapi import FastAPI
-from typing import List, Optional, Dict, Any
-
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import re
 app = FastAPI()
 
 
-@app.get("/ping")
-async def ping():
-    return {"message": "pong"}
+# may need to change this depending on how llm is
+class FuzzyResponse(BaseModel):
+    match: str
 
+@app.get("/fuzzy", response_model=FuzzyResponse)
+async def fuzzy_endpoint(query: str):
+    if not query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    words = re.findall(r'\b\w+\b', query.lower())
+    result = fuzzy_match(words)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="No match found")
+
+    return {"match": result}
 
 def fuzzy_match(query: list):
     #  words blacklist (lots of false positives)
@@ -83,8 +95,6 @@ def fuzzy_match(query: list):
 
 
 
-
-print(fuzzy_match(["EnChAnTeD", "DiAmOnD", "block"]))
 
 if __name__ == "__main__":
     import uvicorn
