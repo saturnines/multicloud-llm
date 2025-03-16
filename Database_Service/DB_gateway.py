@@ -86,7 +86,7 @@ class APIGateway:
                         relative_volume=data['metrics'].get('relative_volume'),
                         possible_profit=data['metrics'].get('possible_profit'),
                         current_price=data['metrics'].get('current_price'),
-                        search_query=data['metrics'].get('search_Query')
+                        search_query=data['metrics'].get('search_query')
                     )
 
                     top_n.cache.add(node)

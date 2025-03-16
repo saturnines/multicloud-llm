@@ -35,7 +35,7 @@ class Metrics(BaseModel):
     possible_profit: Optional[float]
     current_price: Optional[float]
     instant_sell: Optional[float]
-    search_Query: Optional[str] = None
+    search_query: Optional[str] = None
 class SignalData(BaseModel):
     signal: str
     metrics: Metrics

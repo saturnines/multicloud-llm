@@ -118,19 +118,21 @@ class TopNCache:
     def __init__(self, k: int):
         self.HeapCache = []
         self.cap = k
+        self.counter = 0
 
     def add(self, heap_node: HeapNode):
         heap_node.adjust_rank()
+        self.counter += 1
         if len(self.HeapCache) < self.cap:
-            heapq.heappush(self.HeapCache, (-heap_node.get_rank(), heap_node))
+            heapq.heappush(self.HeapCache, (-heap_node.get_rank(), self.counter, heap_node))
         elif -heap_node.get_rank() > self.HeapCache[0][0]:
-            heapq.heapreplace(self.HeapCache, (-heap_node.get_rank(), heap_node))
+            heapq.heapreplace(self.HeapCache, (-heap_node.get_rank(), self.counter, heap_node))
 
     def get_cache(self):
         """Return the cache as a JSON string"""
         return json.dumps([
             self.extract_node_data(node)
-            for _, node in sorted(self.HeapCache, reverse=True)
+            for _, _, node in sorted(self.HeapCache, reverse=True)
         ])
 
     @staticmethod
@@ -161,7 +163,7 @@ class TopNCache:
         sums = {metric: 0 for metric in metrics}
         count = len(self.HeapCache)
 
-        for _, node in self.HeapCache:
+        for _, _, node in self.HeapCache:  # Need three variables here
             for metric in metrics:
                 value = getattr(node, f"get_{metric}")()
                 if value is not None:
