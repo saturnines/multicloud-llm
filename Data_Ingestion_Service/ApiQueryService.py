@@ -8,13 +8,17 @@ from pydantic import BaseModel, ValidationError
 from typing import Optional
 from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
 from Data_Ingestion_Service.DataIngestionLogConfig import configure_logging
+from dotenv import load_dotenv
 import random
 
+load_dotenv('DataEnv.env')
 logger = configure_logging('Data_Ingestion_Service')
 
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
+
 api_query_topic = 'api_query'
 database_operations_topic = 'database_operations'
+
 
 
 class Metrics(BaseModel):
@@ -101,7 +105,7 @@ class KafkaEventProcessor:
                     data = response.json()
                     signal = data.get("Signal")
                     metrics_data = data.get("metrics", {})
-                    metrics_data['search_Query'] = search_term
+                    metrics_data['search_query'] = search_term
 
                     try:
                         item = ItemResponse(signal=signal, metrics=Metrics(**metrics_data))
@@ -124,7 +128,8 @@ class KafkaEventProcessor:
                     return None
 
                 elif response.status_code in {500, 503}:
-                    logger.error(f"Server error {response.status_code} for {search_term}, attempt {retries + 1}/{max_retries}")
+                    logger.error(
+                        f"Server error {response.status_code} for {search_term}, attempt {retries + 1}/{max_retries}")
                     if retries < max_retries:
                         self.retry_counts[search_term] = retries + 1
                         self.last_retry_time[search_term] = time.time()
@@ -150,24 +155,32 @@ class KafkaEventProcessor:
     async def run(self):
         logger.info("Starting KafkaEventProcessor service...")
         try:
+
             while True:
+
                 search_term = await self.api_breaker.process_from_queue()
+
+
                 if not search_term:
-                    logger.debug("No search term available, enqueueing tasks")
                     self.api_breaker.enqueue_tasks()
+
                     await asyncio.sleep(5)
                     continue
 
-                await self.process_item(search_term)
+
+                result = await self.process_item(search_term)
+
 
         except Exception as e:
+
             logger.error(f"Fatal error in event processor: {str(e)}")
         finally:
             logger.info("Shutting down KafkaEventProcessor")
             self.producer.close()
 
-
 if __name__ == "__main__":
     logger.info("Initializing Data Ingestion Service")
+    print("running kafka processer")
     processor = KafkaEventProcessor()
+    print("running  processor")
     asyncio.run(processor.run())
