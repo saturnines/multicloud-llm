@@ -209,14 +209,14 @@ class DB_Operations:
         LIMIT 5
         """
         try:
-            async with self.db_manager.get_pool() as conn:
-                result = await conn.fetch(query)  # This might not work and might break get random five if it does just default back
+            pool = await self.db_manager.get_pool()
+            async with pool.acquire() as conn:
+                result = await conn.fetch(query)
                 logger.info("Retrieved random records", extra={
                     'records_found': len(result) if result else 0,
                     'operation': 'random_select'
                 })
                 return result
-                # return this instead if it bugs: return await conn.fetch(query)
         except Exception as e:
             logger.error("Database random select error", extra={
                 'error': str(e),
@@ -224,7 +224,6 @@ class DB_Operations:
                 'operation': 'random_select'
             })
             return None
-
 
 
 
