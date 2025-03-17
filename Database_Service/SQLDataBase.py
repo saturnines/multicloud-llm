@@ -204,7 +204,7 @@ class DB_Operations:
         query = """
         SELECT id, signal, profitability, volatility, liquidity 
         FROM data_metrics 
-        WHERE signal = 'BUY' 
+        WHERE signal IN ('Watch', 'No', 'BUY') 
         ORDER BY RANDOM() 
         LIMIT 5
         """
