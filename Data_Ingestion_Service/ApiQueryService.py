@@ -20,7 +20,6 @@ api_query_topic = 'api_query'
 database_operations_topic = 'database_operations'
 
 
-
 class Metrics(BaseModel):
     profitability: Optional[float] = None
     volatility: Optional[float] = None
@@ -36,7 +35,7 @@ class Metrics(BaseModel):
     possible_profit: Optional[float] = None
     current_price: Optional[float] = None
     instant_sell: Optional[float] = None
-    search_Query: Optional[str] = None
+    search_query: Optional[str] = None
 
 
 class ItemResponse(BaseModel):
@@ -160,13 +159,11 @@ class KafkaEventProcessor:
 
                 search_term = await self.api_breaker.process_from_queue()
 
-
                 if not search_term:
                     self.api_breaker.enqueue_tasks()
 
                     await asyncio.sleep(5)
                     continue
-
 
                 result = await self.process_item(search_term)
 
@@ -177,6 +174,7 @@ class KafkaEventProcessor:
         finally:
             logger.info("Shutting down KafkaEventProcessor")
             self.producer.close()
+
 
 if __name__ == "__main__":
     logger.info("Initializing Data Ingestion Service")
