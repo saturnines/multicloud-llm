@@ -8,9 +8,6 @@ this is a just a sandbox to play around which technologies.~~
 
 - **AWS EC2 Deployment with Kubernetes (k8s)**: 
 - **Stack Tracking with Jaeger**: 
-- **Function Calling with an LLM Model**:
-- **Health Broadcasting with RabbitMQ**: 
-
 ---
 
 
