@@ -71,7 +71,7 @@ services:
       - kafka-network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.4.2
     ports:
       - "3000:3000"
     environment:
