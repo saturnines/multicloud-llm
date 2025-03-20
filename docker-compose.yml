@@ -1,5 +1,6 @@
 version: '3.8'
 services:
+  # Keep your existing services
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.3
     environment:
@@ -58,6 +59,35 @@ services:
     networks:
       - kafka-network
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - kafka-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-rabbitmq-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - kafka-network
+    depends_on:
+      - rabbitmq
+
 networks:
   kafka-network:
     driver: bridge
+
+volumes:
+  grafana_data:
