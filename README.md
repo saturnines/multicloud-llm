@@ -1,13 +1,13 @@
 # Distributed Systems Project
 
-Hi! This is an in-progress distributed systems project I'm working on.
+Hi! This is an in-progress distributed systems project I'm working on for my guild :)
 
-this is a just a sandbox to play around which technologies.~~
+
 ~~
-## Future Plans (maybe)
+## Future Plans
 
 - **AWS EC2 Deployment with Kubernetes (k8s)**: 
-- **Stack Tracking with Jaeger**: 
+- **Stack Tracking with Jaeger**:
 ---
 
 
