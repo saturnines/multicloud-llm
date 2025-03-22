@@ -115,16 +115,30 @@ class DB_Operations:
             return await conn.fetch(query, *args)
 
     async def upsert_signal_data(self, signal_data: SignalData):
-        delete_query = "DELETE FROM data_metrics WHERE search_query = $1"
-
-        insert_query = """
+        upsert_query = """
         INSERT INTO data_metrics
         (signal, profitability, volatility, liquidity, price_momentum, 
         relative_volume, spread, price_stability, historical_buy_comparison, 
         historical_sell_comparison, medium_sell, medium_buy, possible_profit, 
         current_price, instant_sell, search_query)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        ON CONFLICT (search_query, signal) DO UPDATE SET
+        profitability = $2,
+        volatility = $3,
+        liquidity = $4,
+        price_momentum = $5,
+        relative_volume = $6,
+        spread = $7,
+        price_stability = $8,
+        historical_buy_comparison = $9,
+        historical_sell_comparison = $10,
+        medium_sell = $11,
+        medium_buy = $12,
+        possible_profit = $13,
+        current_price = $14,
+        instant_sell = $15
         """
+
         values = (
             signal_data.Signal,
             signal_data.metrics.profitability,
@@ -147,8 +161,7 @@ class DB_Operations:
         try:
             pool = await self.db_manager.get_pool()
             async with pool.acquire() as conn:
-                await conn.execute(delete_query, signal_data.metrics.search_query)
-                await conn.execute(insert_query, *values)
+                await conn.execute(upsert_query, *values)
             logger.info("Data upserted successfully", extra={
                 'search_query': signal_data.metrics.search_query,
                 'signal': signal_data.Signal,
