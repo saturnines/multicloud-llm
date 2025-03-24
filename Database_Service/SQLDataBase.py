@@ -237,6 +237,3 @@ class DB_Operations:
                 'operation': 'random_select'
             })
             return None
-
-
-
