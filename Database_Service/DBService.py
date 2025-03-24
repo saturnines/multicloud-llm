@@ -188,5 +188,12 @@ async def get_random_data():
         logger.error(f"Error as {e}, failed to get random data from API endpoint")
         raise HTTPException(status_code=500, detail="DB Error!")
 
+
+async def init_db():
+    creator = DataBaseCreator()
+    await creator.create_db()
+
+
 if __name__ == "__main__":
+    asyncio.run(init_db())
     uvicorn.run(app, host="0.0.0.0", port=8001)
