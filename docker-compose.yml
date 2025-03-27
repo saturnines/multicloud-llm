@@ -30,13 +30,12 @@ services:
   fluentd:
     image: fluent/fluentd:v1.12
     volumes:
-      - ./fluentd_config:/fluentd/etc
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
     ports:
       - "24224:24224"
-    depends_on:
-      - elasticsearch
     networks:
       - kafka-network
+    command: sh -c "gem install fluent-plugin-elasticsearch && fluentd -c /fluentd/etc/fluent.conf"
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
@@ -58,17 +57,6 @@ services:
     networks:
       - kafka-network
 
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"   # AMQP protocol
-      - "15672:15672" # Management UI
-      - "5552:5552"
-    environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
-    networks:
-      - kafka-network
 
   grafana:
     image: grafana/grafana:10.4.2
@@ -77,13 +65,25 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=maormil-rabbitmq-datasource
+      - GF_INSTALL_PLUGINS=
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
       - kafka-network
-    depends_on:
-      - rabbitmq
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: trading_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgres/data
+    networks:
+      - kafka-network
+
 
 networks:
   kafka-network:
@@ -91,3 +91,4 @@ networks:
 
 volumes:
   grafana_data:
+  postgres_data:
