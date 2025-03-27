@@ -7,7 +7,6 @@ import threading
 import json
 import uvicorn
 from SQLDataBase import *
-from common.rabbitmq_deco import rabbitmq_monitor
 
 app = FastAPI()
 
@@ -66,7 +65,7 @@ class DatabaseBusHelper:
         self.DataBaseCRUD = DB_Operations()
         self.DataBaseCreate = DataBaseCreator()
 
-    @rabbitmq_monitor(service_name="db_service")
+
     async def upsert_create(self, data_model):
         try:
             await self.DataBaseCRUD.upsert_signal_data(data_model)
@@ -83,7 +82,7 @@ class DatabaseBusHelper:
             })
             raise HTTPException(status_code=500, detail="DB Error!")
 
-    @rabbitmq_monitor(service_name="db_service")
+
     async def read_data(self, data_model):
         try:
             read_data = await self.DataBaseCRUD.read_signal_data(data_model)
@@ -95,7 +94,7 @@ class DatabaseBusHelper:
             logger.error(f"Failed to get read data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
-    @rabbitmq_monitor(service_name="db_service")
+
     async def delete_data(self, data_model):
         try:
             await self.DataBaseCRUD.delete_signal_data(data_model)
@@ -131,7 +130,7 @@ class DatabaseConsumer:
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
 
-    @rabbitmq_monitor(service_name="db_service")
+
     def _consume_messages(self):
         asyncio.set_event_loop(self.loop)
         try:

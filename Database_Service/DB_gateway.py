@@ -13,7 +13,7 @@ from DatabaseLogConfig import configure_logging
 logger = configure_logging('DB_Gateway')
 load_dotenv('DataBase.env')
 from TopNCache import *
-from common.rabbitmq_deco import rabbitmq_monitor
+
 
 
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
@@ -61,7 +61,7 @@ class APIGateway:
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
 
-    @rabbitmq_monitor(service_name="db_gateway")
+
     def _consume_messages(self):
         try:
             logger.info("Starting to consume messages from data ingestion...")

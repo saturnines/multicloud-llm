@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import httpx
 import re
-from common.rabbitmq_deco import rabbitmq_monitor
+
 
 # Logging for efk
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -239,7 +239,7 @@ class LLMGateway:
             logger.error(f"Error getting market data: {e}")
             return {}
 
-    @rabbitmq_monitor(service_name="llm_gateway")
+
     async def _get_top_items_from_cache(self) -> List[Dict[str, Any]]:
         """Get top items from the TopNCache"""
         try:
@@ -276,7 +276,7 @@ class LLMGateway:
             logger.error(f"Error getting top items from cache: {e}")
             return []
 
-    #  @rabbitmq_monitor(service_name="llm_gateway")  Only do this once I check this works.
+
     async def get_random_recommendations(self, count: int = 5) -> List[Dict[str, Any]]:
         """Get random item recommendations with analysis"""
         try:
@@ -309,7 +309,7 @@ class LLMGateway:
             logger.error(f"Error getting random recommendations: {e}")
             return []
 
-    @rabbitmq_monitor(service_name="llm_gateway")
+
     async def process_query(self, query: str):
         """Process a user query"""
         try:
