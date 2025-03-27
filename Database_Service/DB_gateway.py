@@ -13,11 +13,13 @@ from DatabaseLogConfig import configure_logging
 logger = configure_logging('DB_Gateway')
 load_dotenv('DataBase.env')
 from TopNCache import *
+from common.promMetrics import prometheus_monitor, start_prometheus_server
 
 
-
+start_prometheus_server(service_name="DB_Gateway", port=8010)
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 kafka_topic = os.getenv('KAFKA_TOPIC', 'api_query')  # Topic from data ingestion
+
 
 class Metrics(BaseModel):
     """Model for expected API result from Data Ingestion"""
@@ -61,7 +63,7 @@ class APIGateway:
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
 
-
+    @prometheus_monitor(service_name="DB_gateway")
     def _consume_messages(self):
         try:
             logger.info("Starting to consume messages from data ingestion...")
@@ -114,6 +116,7 @@ class CacheObject:
 top_n = CacheObject()
 gateway = APIGateway()
 
+@prometheus_monitor(service_name="DB_Gateway")
 @app.get("/api/v1/get_cache")
 async def get_top_n_cache():
     """Return Top-N Cache"""
