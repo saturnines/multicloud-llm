@@ -7,9 +7,11 @@ import threading
 import json
 import uvicorn
 from SQLDataBase import *
-
+from common.promMetrics import prometheus_monitor, start_prometheus_server
 app = FastAPI()
 
+
+start_prometheus_server(service_name="DB_Service", port=8011)
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 from DatabaseLogConfig import configure_logging
 logger = configure_logging('DB_Gateway')
@@ -65,7 +67,7 @@ class DatabaseBusHelper:
         self.DataBaseCRUD = DB_Operations()
         self.DataBaseCreate = DataBaseCreator()
 
-
+    @prometheus_monitor(service_name="DB_Service")
     async def upsert_create(self, data_model):
         try:
             await self.DataBaseCRUD.upsert_signal_data(data_model)
@@ -82,7 +84,7 @@ class DatabaseBusHelper:
             })
             raise HTTPException(status_code=500, detail="DB Error!")
 
-
+    @prometheus_monitor(service_name="DB_Service")
     async def read_data(self, data_model):
         try:
             read_data = await self.DataBaseCRUD.read_signal_data(data_model)
@@ -94,7 +96,7 @@ class DatabaseBusHelper:
             logger.error(f"Failed to get read data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
-
+    @prometheus_monitor(service_name="DB_Service")
     async def delete_data(self, data_model):
         try:
             await self.DataBaseCRUD.delete_signal_data(data_model)
@@ -106,6 +108,7 @@ class DatabaseBusHelper:
             logger.error(f"Failed to delete data from DB: {e}")
             raise HTTPException(status_code=500, detail="DB Error!")
 
+    @prometheus_monitor(service_name="DB_Service")
     async def get_random_data(self):
         try:
             data = await self.DataBaseCRUD.get_random_five()
@@ -130,7 +133,7 @@ class DatabaseConsumer:
         self.consumer_thread = threading.Thread(target=self._consume_messages, daemon=True)
         self.consumer_thread.start()
 
-
+    @prometheus_monitor(service_name="DB_Service")
     def _consume_messages(self):
         asyncio.set_event_loop(self.loop)
         try:
@@ -161,6 +164,8 @@ class DatabaseConsumer:
 EventBus = DatabaseBusHelper()
 db_consumer = DatabaseConsumer()
 
+
+@prometheus_monitor(service_name="DB_Service")
 @app.get("/api/v1/read_data/")
 async def read_data(data: str):
     try:
@@ -170,6 +175,7 @@ async def read_data(data: str):
         logger.error(f"Error as {e}, failed to read data.")
         raise HTTPException(status_code=500, detail="DB Error!")
 
+@prometheus_monitor(service_name="DB_Service")
 @app.post("/api/v1/delete_data/")
 async def delete_data(data: str):
     try:
@@ -178,6 +184,7 @@ async def delete_data(data: str):
         logger.error(f"Error as {e}, failed to delete data.")
         raise HTTPException(status_code=500, detail="DB Error!")
 
+@prometheus_monitor(service_name="DB_Service")
 @app.get("/api/v1/random_data/")
 async def get_random_data():
     try:
