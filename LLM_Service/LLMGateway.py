@@ -383,7 +383,7 @@ class LLMGateway:
 
 gateway = LLMGateway()
 
-
+@prometheus_monitor(service_name="LLM_Service")
 @app.post("/process")
 async def process_query(request: QueryRequest):
     return await gateway.process_query(request.query)
