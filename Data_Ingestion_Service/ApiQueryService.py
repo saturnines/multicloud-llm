@@ -10,11 +10,12 @@ from Data_Ingestion_Service.service_breakers_deco import ApiCircuitBreakers
 from Data_Ingestion_Service.DataIngestionLogConfig import configure_logging
 from dotenv import load_dotenv
 import random
+from common.promMetrics import prometheus_monitor, start_prometheus_server
 
 
 load_dotenv('DataEnv.env')
 logger = configure_logging('Data_Ingestion_Service')
-
+start_prometheus_server(service_name="data_ingestion_service", port=8010)
 kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 
 api_query_topic = 'api_query'
@@ -73,7 +74,7 @@ class KafkaEventProcessor:
             del self.last_retry_time[search_term]
         logger.debug(f"Reset retries for search term: {search_term}")
 
-
+    @prometheus_monitor(service_name="data_ingestion_service")
     async def process_item(self, search_term, max_retries=3, base_delay=1):
         retries = self.retry_counts.get(search_term, 0)
 
@@ -167,7 +168,7 @@ class KafkaEventProcessor:
                     await asyncio.sleep(5)
                     continue
 
-                result = await self.process_item(search_term)
+                result = await self.process_item(search_term) # maybe need to fix this
 
 
         except Exception as e:
