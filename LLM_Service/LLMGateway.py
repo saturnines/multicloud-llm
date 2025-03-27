@@ -8,13 +8,16 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import httpx
 import re
-
+from common.promMetrics import prometheus_monitor, start_prometheus_server
 
 # Logging for efk
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("LLMGateway")
 
 app = FastAPI()
+
+#prom
+start_prometheus_server(service_name="LLM_Service", port=8013)
 
 
 class QueryRequest(BaseModel):
@@ -45,6 +48,7 @@ class OpenWebUIClient:
         }
         logger.info(f"Initialized OpenWebUIClient with base URL: {base_url}")
 
+    @prometheus_monitor(service_name="LLM_Service")
     def analyze_market_data(self, query: str, market_data: Dict[str, Any], item_name: str) -> Dict[str, Any]:
         """Analyze market data using function calling"""
 
@@ -216,6 +220,7 @@ class LLMGateway:
         self.llm_client = OpenWebUIClient(base_url="http://localhost:3000", api_key=self.api_key)
         logger.info("Initialized LLMGateway")
 
+    @prometheus_monitor(service_name="LLM_Service")
     async def get_item_match(self, query: str):
         """Gets fuzzy string parsed match from FuzzySearch.py"""
         try:
@@ -229,6 +234,7 @@ class LLMGateway:
             logger.error(f"Error getting item match: {e}")
             return None
 
+    @prometheus_monitor(service_name="LLM_Service")
     async def get_market_data(self, item_id: str):
         """Gets the market data from database service"""
         try:
@@ -239,7 +245,7 @@ class LLMGateway:
             logger.error(f"Error getting market data: {e}")
             return {}
 
-
+    @prometheus_monitor(service_name="LLM_Service")
     async def _get_top_items_from_cache(self) -> List[Dict[str, Any]]:
         """Get top items from the TopNCache"""
         try:
@@ -276,7 +282,7 @@ class LLMGateway:
             logger.error(f"Error getting top items from cache: {e}")
             return []
 
-
+    @prometheus_monitor(service_name="LLM_Service")
     async def get_random_recommendations(self, count: int = 5) -> List[Dict[str, Any]]:
         """Get random item recommendations with analysis"""
         try:
@@ -309,7 +315,7 @@ class LLMGateway:
             logger.error(f"Error getting random recommendations: {e}")
             return []
 
-
+    @prometheus_monitor(service_name="LLM_Service")
     async def process_query(self, query: str):
         """Process a user query"""
         try:
