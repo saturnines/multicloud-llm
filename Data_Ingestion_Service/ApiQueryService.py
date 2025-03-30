@@ -1,6 +1,7 @@
 import json
 import os
 import asyncio
+import sys
 import time
 import httpx
 from kafka import KafkaProducer
@@ -74,6 +75,7 @@ class KafkaEventProcessor:
             del self.last_retry_time[search_term]
         logger.debug(f"Reset retries for search term: {search_term}")
 
+
     @prometheus_monitor(service_name="data_ingestion_service")
     async def process_item(self, search_term, max_retries=3, base_delay=1):
         retries = self.retry_counts.get(search_term, 0)
@@ -94,7 +96,7 @@ class KafkaEventProcessor:
                 logger.info(f"[{current_time}] Sample negative cache size: {len(self.negative_cache)}")
 
             # rate limit
-            await asyncio.sleep(4)
+            await asyncio.sleep(3)
 
             logger.info(f"Making API request for: {search_term}")
             url = f"https://api.kevinsapi.net/items/?search_term={search_term}"
@@ -157,31 +159,78 @@ class KafkaEventProcessor:
     async def run(self):
         logger.info("Starting KafkaEventProcessor service...")
         try:
-
             while True:
+                try:
+                    search_term = await self.api_breaker.process_from_queue()
 
-                search_term = await self.api_breaker.process_from_queue()
+                    if not search_term:
+                        try:
+                            self.api_breaker.enqueue_tasks()
+                        except Exception as enqueue_error:
+                            logger.error(f"Error enqueueing tasks: {str(enqueue_error)}")
 
-                if not search_term:
-                    self.api_breaker.enqueue_tasks()
+                        await asyncio.sleep(5)
+                        continue
 
+                    try:
+                        result = await self.process_item(search_term)
+                        if result:
+                            logger.info(f"Successfully processed item: {search_term}")
+                        else:
+                            logger.warning(f"Failed to process item: {search_term}")
+                    except Exception as process_error:
+                        logger.error(f"Error processing item {search_term}: {str(process_error)}")
+
+                except Exception as e:
+                    logger.error(f"Error in main loop: {str(e)}")
                     await asyncio.sleep(5)
-                    continue
-
-                result = await self.process_item(search_term) # maybe need to fix this
-
 
         except Exception as e:
-
             logger.error(f"Fatal error in event processor: {str(e)}")
         finally:
             logger.info("Shutting down KafkaEventProcessor")
             self.producer.close()
 
 
+def ensure_kafka_ready(bootstrap_servers, max_attempts=30, delay=2):
+    """Make sure Kafka is online"""
+    import time
+    from kafka import KafkaProducer
+    from kafka.errors import NoBrokersAvailable, NodeNotReadyError
+
+    for attempt in range(max_attempts):
+        try:
+            #test to see if kafka works
+            producer = KafkaProducer(
+                bootstrap_servers=bootstrap_servers,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            )
+            producer.flush()
+            producer.close()
+
+            logger.info(f"Kafka connection successful on attempt {attempt + 1}")
+            return True
+
+        except (NoBrokersAvailable, NodeNotReadyError) as e:
+            logger.warning(f"Kafka not ready (attempt {attempt + 1}/{max_attempts}): {e}")
+            time.sleep(delay)
+        except Exception as e:
+            logger.warning(f"Unexpected error connecting to Kafka (attempt {attempt + 1}/{max_attempts}): {e}")
+            time.sleep(delay)
+
+    logger.error("Failed to connect to Kafka after multiple attempts")
+    return False
+
+
 if __name__ == "__main__":
     logger.info("Initializing Data Ingestion Service")
+
+    # Ensure Kafka is ready before proceeding
+    if not ensure_kafka_ready(kafka_bootstrap_servers):
+        logger.error("Kafka not ready, aborting startup")
+        sys.exit(1)
+
     print("running kafka processer")
     processor = KafkaEventProcessor()
-    print("running  processor")
+    print("running processor")
     asyncio.run(processor.run())
