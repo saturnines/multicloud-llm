@@ -28,13 +28,14 @@ services:
       - zookeeper
 
   fluentd:
-    image: fluent/fluentd:v1.12
+    image: fluent/fluentd:v1.16
     volumes:
       - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
     ports:
       - "24224:24224"
     networks:
       - kafka-network
+    user: root
     command: sh -c "gem install fluent-plugin-elasticsearch && fluentd -c /fluentd/etc/fluent.conf"
 
   elasticsearch:
@@ -108,3 +109,4 @@ networks:
 volumes:
   grafana_data:
   postgres_data:
+  prometheus_data:
