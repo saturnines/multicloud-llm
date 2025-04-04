@@ -217,7 +217,7 @@ class LLMGateway:
         self.api_key = env.api_key
 
         # webui client with function calling
-        self.llm_client = OpenWebUIClient(base_url="http://localhost:3000", api_key=self.api_key)
+        self.llm_client = OpenWebUIClient(base_url="http://localhost:3001", api_key=self.api_key)
         logger.info("Initialized LLMGateway")
 
     @prometheus_monitor(service_name="LLM_Service")
