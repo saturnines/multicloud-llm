@@ -178,7 +178,8 @@ class DB_Operations:
     async def read_signal_data(self, search_query: str):
         query = "SELECT * FROM data_metrics WHERE search_query = $1"
         try:
-            async with self.db_manager.get_pool() as conn:
+            pool = await self.db_manager.get_pool()
+            async with pool.acquire() as conn:
                 result = await conn.fetch(query, search_query)
                 logger.info("Data read successfully", extra={
                     'search_query': search_query,
@@ -237,3 +238,4 @@ class DB_Operations:
                 'operation': 'random_select'
             })
             return None
+
