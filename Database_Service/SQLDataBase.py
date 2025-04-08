@@ -216,7 +216,7 @@ class DB_Operations:
     async def get_random_five(self):
         """Get 5 sql objects, that are profitable"""
         query = """
-        SELECT id, signal, profitability, volatility, liquidity 
+        SELECT id, signal, profitability, volatility, liquidity, search_query 
         FROM data_metrics 
         WHERE signal IN ('Watch', 'No', 'BUY') 
         ORDER BY RANDOM() 
