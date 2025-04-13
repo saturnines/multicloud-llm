@@ -48,7 +48,7 @@ docker-compose up
 - Add Discord Webhook support
 
 ## PR Requests
-- If you would like to add more absurd stuff such as blockchain or god help us (two phase commiting) to postgres and cassandra when I do add it sure go ahead.
+- If you would like to add more absurd stuff such as blockchain or god help us (two phase committing) to postgres and cassandra when I do add it sure go ahead.
 
 
 ## Disclaimer
