@@ -48,7 +48,7 @@ docker-compose up
 - Add better instructions to running this. 
 
 ## PR Requests
-- If you would like to add more absurd stuff such as blockchain (????) or god help me (two phase committing) to postgres and cassandra when I do add it sure go ahead. 
+- If you would like to add more absurd stuff such as blockchain (????) or god help me (two phase committing) to postgres by all means open a PR.
 
 
 ## Disclaimer
