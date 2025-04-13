@@ -44,10 +44,13 @@ docker-compose up
 ## Future Plans
 
 - Improve Readme
-- Added Cassandra to match prod, should be easy because all I need to do is add a topic for 
+- Added Cassandra to match prod, should be easy because all I need to do is add a topic for Cassandra as a sub to apiquery which is the topic.
 - Add Discord Webhook support
+
+## PR Requests
+- If you would like to add more absurd stuff such as blockchain or god help us (two phase commiting) to postgres and cassandra when I do add it sure go ahead.
 
 
 ## Disclaimer
 
-Do NOT use this to actually trade on Minecraft Skyblock, you will lose money. This is more a less a sandbox for distributed systems.
+Do NOT use this to actually trade on Minecraft Skyblock, you will lose coins. This is more a less a sandbox for distributed systems.
