@@ -102,6 +102,83 @@ services:
       - kafka-network
 
 
+  data-ingestion:
+    image: python:3.9-slim
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: bash -c "pip install -r requirements.txt && python -m Data_Ingestion_Service.ApiQueryService"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+      - fluentd
+    ports:
+      - "8010:8010"
+    networks:
+      - kafka-network
+
+  db-service:
+    image: python:3.9-slim
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: bash -c "pip install -r requirements.txt && python -m Database_Service.DBService"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - HOST=postgres
+      - DB_PORT=5432
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - "8001:8001"
+      - "8011:8011"
+    networks:
+      - kafka-network
+
+  db-gateway:
+    image: python:3.9-slim
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: bash -c "pip install -r requirements.txt && python -m Database_Service.DB_gateway"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - "8002:8002"
+    networks:
+      - kafka-network
+
+  llm-gateway:
+    image: python:3.9-slim
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: bash -c "pip install -r requirements.txt && python -m LLM_Service.LLMGateway"
+    depends_on:
+      - db-service
+      - db-gateway
+    ports:
+      - "8004:8004"
+      - "8013:8013"
+    networks:
+      - kafka-network
+
+  fuzzy-search:
+    image: python:3.9-slim
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: bash -c "pip install -r requirements.txt && python -m LLM_Service.FuzzySearch"
+    ports:
+      - "8000:8000"
+    networks:
+      - kafka-network
+
 networks:
   kafka-network:
     driver: bridge
