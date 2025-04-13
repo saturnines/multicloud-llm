@@ -24,9 +24,8 @@ A distributed system for trading data analysis with microservices architecture u
 
 
 1. Run all services:
-```bash
 docker-compose up 
-```
+
 
 ## API Endpoints
 
@@ -46,9 +45,10 @@ docker-compose up
 - Improve Readme
 - Added Cassandra to match prod, should be easy because all I need to do is add a topic for Cassandra as a sub to apiquery which is the topic.
 - Add Discord Webhook support
+- Add better instructions to running this. 
 
 ## PR Requests
-- If you would like to add more absurd stuff such as blockchain or god help us (two phase committing) to postgres and cassandra when I do add it sure go ahead.
+- If you would like to add more absurd stuff such as blockchain (????) or god help me (two phase committing) to postgres and cassandra when I do add it sure go ahead. 
 
 
 ## Disclaimer
